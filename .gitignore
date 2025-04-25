@@ -1,1 +1,4 @@
 ESP32/SECRETS.h
+ESP32/clion_proj/.idea/
+ESP32/clion_proj/cmake-build-debug/
+ESP32/arduino_proj/SECRETS.h

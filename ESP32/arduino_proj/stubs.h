@@ -1,0 +1,1 @@
+/* file that its content is used in the test environment */
