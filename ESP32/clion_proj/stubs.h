@@ -20,6 +20,15 @@ public:
 
 void delay(int){}
 
+#define SERIAL_8N1 -1
+
+class HardwareSerial
+{
+public:
+    explicit HardwareSerial(int uartIndex){}
+    void begin(int frequency, int config, int rxPin, int txPin){}
+    void println(const char* str){}
+};
 SerialObj Serial;
 
 

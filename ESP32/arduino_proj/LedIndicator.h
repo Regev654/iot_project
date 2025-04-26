@@ -5,11 +5,16 @@
 
 class LedIndicator
 {
-    const int DELAY = 100;
+    const int DELAY = 300;
     Adafruit_NeoPixel pixels;
 public:
     LedIndicator()
             : pixels(PIXELS_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800)
+    {
+
+    }
+
+    void setup()
     {
         pixels.begin();
         pixels.clear();

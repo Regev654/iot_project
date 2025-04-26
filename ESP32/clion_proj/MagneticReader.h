@@ -16,6 +16,13 @@ class MagneticReader : public EspUsbHost {
     string currentId;
     State state = State::PROCESS;
 public:
+
+    void setUp()
+    {
+        begin();
+        setHIDLocal(HID_LOCAL_Hebrew);
+    }
+
     void onKeyboardKey(uint8_t ascii, uint8_t keycode, uint8_t modifier) override {
         if (' ' <= ascii && ascii <= '~') {
             currentId += static_cast<char>(ascii);
