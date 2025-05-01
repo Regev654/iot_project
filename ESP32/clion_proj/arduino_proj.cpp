@@ -2,35 +2,31 @@
 #include "MagneticReader.h"
 #include "LedIndicator.h"
 #include "Printer.h"
+#include "BarcodeScanner.h"
+#include "IdChecker.h"
 
-MagneticReader usbHost;
-LedIndicator ledIndicator;
+
 Printer printer;
+// !!!important!!!
+//need to init the LED after the printer
+LedIndicator ledIndicator;
+IdChecker idChecker(&printer, &ledIndicator);
+MagneticReader magneticReader(&idChecker);
+BarcodeScanner barcodeScanner(&idChecker);
 
 void setup() {
     Serial.begin(115200);
-    delay(500);
-    Serial.printf("starting");
+    Serial.println("starting");
 
-    usbHost.setUp();
     ledIndicator.setup();
     printer.setup();
+    magneticReader.setUp();
+    barcodeScanner.setup();
 
-    Serial.printf("set");
+    Serial.println("set");
 }
 
 void loop() {
-    if(usbHost.getState() == State::PROCESS) {
-        usbHost.task();
-        return;
-    }
-
-    if(usbHost.getState() == State::INVALID)
-        ledIndicator.displayFailure();
-    else if(usbHost.getState() == State::VALID) {
-        printer.println("Free beer :)");
-        ledIndicator.displaySuccess();
-    }
-
-    usbHost.startProcessing();
+    magneticReader.onTrigger();
+    barcodeScanner.onTrigger();
 }

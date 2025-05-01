@@ -2,3 +2,11 @@ ESP32/SECRETS.h
 ESP32/clion_proj/.idea/
 ESP32/clion_proj/cmake-build-debug/
 ESP32/arduino_proj/SECRETS.h
+ESP32/arduino_proj/arduino_proj.ino
+ESP32/arduino_proj/BarcodeScanner.h
+ESP32/arduino_proj/IdChecker.h
+ESP32/arduino_proj/Interfaces.h
+ESP32/arduino_proj/LedIndicator.h
+ESP32/arduino_proj/MagneticReader.h
+ESP32/arduino_proj/parameters.h
+ESP32/arduino_proj/Printer.h

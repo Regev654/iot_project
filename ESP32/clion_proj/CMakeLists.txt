@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.22)
-project(temp)
+project(iot)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_executable(temp arduino_proj.cpp
+add_executable(iot arduino_proj.cpp
         LedIndicator.h
         Adafruit_NeoPixel.h
-        main.cpp)
+        main.cpp
+        Interfaces.h
+        IdChecker.h)
