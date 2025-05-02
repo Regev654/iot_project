@@ -34,6 +34,8 @@ public:
         serial.write(doubleSize, sizeof(doubleSize));
         uint8_t alignCenter[] = {0x1B, 0x61, 0x01};
         serial.write(alignCenter, sizeof(alignCenter));
+        uint8_t reverse[] = {0x1B, 0x7B, 0x01};
+        serial.write(reverse, sizeof(reverse));
 
         serial.println(str);
 
