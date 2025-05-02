@@ -28,7 +28,23 @@ public:
 
         serial.println("");
         serial.println("");
+
+        // big
+        uint8_t doubleSize[] = {0x1B, 0x21, 0x38};
+        serial.write(doubleSize, sizeof(doubleSize));
+        uint8_t alignCenter[] = {0x1B, 0x61, 0x01};
+        serial.write(alignCenter, sizeof(alignCenter));
+
         serial.println(str);
+
+        /*
+        // Reset to normal
+        uint8_t normalSize[] = {0x1B, 0x21, 0x00};
+        serial.write(normalSize, sizeof(normalSize));
+        uint8_t alignCenter[] = {0x1B, 0x61, 0x00};
+        serial.write(alignCenter, sizeof(alignCenter));
+        serial.println(str);
+        */
         serial.println("");
         serial.println("");
     }

@@ -29,8 +29,8 @@ public:
 
         if(id == "207708603" )
         {
-            ledIndicator->displaySuccess();
             printer->println("Free beer :)");
+            ledIndicator->displaySuccess();
             counter++;
             return;
         }

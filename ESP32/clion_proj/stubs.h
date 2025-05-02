@@ -33,6 +33,7 @@ public:
     void println(const char* str){}
     bool available(){return true;}
     String readStringUntil(char c){ return {}; }
+    void write(uint8_t* byte, int size){}
 };
 
 SerialObj Serial;
