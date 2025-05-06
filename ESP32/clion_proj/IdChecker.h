@@ -20,13 +20,6 @@ public:
 
     void onIdReceived(const std::string& id) override
     {
-        if(counter > 2)
-        {
-            ledIndicator->displayReachedMax();
-            counter = 0;
-            return;
-        }
-
         if(id == "207708603" )
         {
             printer->println("Free beer :)");
