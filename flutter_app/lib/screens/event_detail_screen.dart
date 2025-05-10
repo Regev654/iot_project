@@ -72,12 +72,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _uploadEventToFirebase(String action) async {
     final dbRef = FirebaseDatabase.instance.ref();
-    await dbRef.child('events').child(widget.event.title).set({
-      'title': widget.event.title,
-      'participants': participants,
-      'action': action,
-      'timestamp': DateTime.now().toIso8601String(),
-    });
+    print('Uploading event to Firebase: ${widget.event.eventId}');
+    try {
+      await dbRef.child('events').child(widget.event.eventId).set({
+        'title': widget.event.title,
+        'participants': participants,
+        'action': action,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      print('Event uploaded successfully');
+    } catch (e) {
+      print('Error uploading event: $e');
+    }
   }
 
   @override
@@ -136,6 +142,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       Navigator.pop(
                         context,
                         Event(
+                          eventId: widget.event.eventId,
                           title: widget.event.title,
                           participants: participants,
                         ),

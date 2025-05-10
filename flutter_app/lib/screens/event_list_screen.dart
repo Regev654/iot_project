@@ -23,7 +23,7 @@ class _EventListScreenState extends State<EventListScreen> {
             onPressed: () {
               if (controller.text.trim().isNotEmpty) {
                 setState(() {
-                  events.add(Event(title: controller.text.trim()));
+                  events.add(Event(eventId: DateTime.now().millisecondsSinceEpoch.toString(), title: controller.text.trim()));
                 });
               }
               Navigator.pop(context);

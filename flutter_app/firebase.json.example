@@ -1,0 +1,25 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "your-project-id",
+          "appId": "your-android-app-id",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "your-project-id",
+          "configurations": {
+            "android": "your-android-config",
+            "ios": "your-ios-config",
+            "macos": "your-macos-config",
+            "web": "your-web-config",
+            "windows": "your-windows-config"
+          }
+        }
+      }
+    }
+  }
+} 
