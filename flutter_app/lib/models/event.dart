@@ -2,34 +2,43 @@ import 'participant.dart';
 
 class Event {
   String eventId;
-  String title;
+  String eventTitle;
   String textToPrint;
+  int amount;
   List<Participant> participants;
-  bool isLive;
 
   Event({
     required this.eventId, 
-    required this.title, 
+    required this.eventTitle, 
     this.textToPrint = '', 
+    this.amount = 0,
     List<Participant>? participants,
-    this.isLive = false,
   }) : participants = participants ?? [];
 
   Map<String, dynamic> toJson() => {
-    'eventId': eventId,
-    'title': title,
+    'ID': eventId,
+    'amount': amount,
     'textToPrint': textToPrint,
-    'isLive': isLive,
+    'eventTitle': eventTitle,
+    'Participants': participants.fold<Map<String, dynamic>>({}, (map, participant) {
+      map[participant.id] = participant.toJson();
+      return map;
+    }),
   };
 
   factory Event.fromJson(Map<String, dynamic> json) {
-    final participants = json['participants'] as List<dynamic>?;
-    return Event(
-      eventId: json['eventId'] as String,
-      title: json['title'] as String,
+    print('Parsing event JSON: $json'); // Debug print
+    final participants = json['Participants'] as Map<String, dynamic>?;
+    final event = Event(
+      eventId: json['ID'] as String,
+      eventTitle: json['eventTitle'] as String,
       textToPrint: json['textToPrint'] as String? ?? '',
-      participants: participants?.map((p) => Participant.fromJson(p as Map<String, dynamic>)).toList() ?? [],
-      isLive: json['isLive'] as bool? ?? false,
+      amount: json['amount'] as int? ?? 0,
+      participants: participants?.entries.map((e) => 
+        Participant.fromJson(Map<String, dynamic>.from(e.value as Map))
+      ).toList() ?? [],
     );
+    print('Created event: ${event.eventTitle} with ${event.participants.length} participants'); // Debug print
+    return event;
   }
 }

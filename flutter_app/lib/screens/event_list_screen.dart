@@ -20,81 +20,73 @@ class _EventListScreenState extends State<EventListScreen> {
     super.initState();
     _loadEvents();
     // Listen for real-time updates
-    _dbRef.child('events').onValue.listen((event) {
+    _dbRef.child('Events').onValue.listen((event) {
       _loadEvents();
     });
-    _dbRef.child('liveEvent').onValue.listen((event) {
+    _dbRef.child('LiveEvent').onValue.listen((event) {
       _loadEvents();
     });
   }
 
   Future<void> _loadEvents() async {
     try {
-      final eventsSnapshot = await _dbRef.child('events').get();
-      final liveEventSnapshot = await _dbRef.child('liveEvent').get();
+      print('Loading events from database...'); // Debug print
+      final eventsSnapshot = await _dbRef.child('Events').get();
+      final liveEventSnapshot = await _dbRef.child('LiveEvent').get();
 
       if (mounted) {
         setState(() {
           events = [];
           if (eventsSnapshot.exists) {
+            print('Events snapshot exists, processing data...'); // Debug print
             final data = eventsSnapshot.value as Map<dynamic, dynamic>;
+            print('Raw events data: $data'); // Debug print
+            
             data.forEach((key, value) {
               if (value != null) {
-                final Map<String, dynamic> eventData = {};
-                (value as Map<dynamic, dynamic>).forEach((k, v) {
-                  if (k is String && k != 'participants') {
-                    eventData[k] = v;
+                try {
+                  final Map<String, dynamic> eventData = Map<String, dynamic>.from(value as Map);
+                  eventData['ID'] = key.toString();
+                  print('Processing event with ID: $key'); // Debug print
+                  print('Event data: $eventData'); // Debug print
+                  
+                  if (eventData['Participants'] != null) {
+                    final participantsMap = eventData['Participants'] as Map<dynamic, dynamic>;
+                    eventData['Participants'] = Map<String, dynamic>.from(participantsMap);
                   }
-                });
-                eventData['eventId'] = key.toString();
-
-                if (value['participants'] != null) {
-                  final participantsMap = value['participants'] as Map<dynamic, dynamic>;
-                  final participantsList = <Map<String, dynamic>>[];
-                  participantsMap.forEach((id, data) {
-                    if (data != null) {
-                      final participantData = Map<String, dynamic>.from(data as Map);
-                      participantData['id'] = id.toString();
-                      participantsList.add(participantData);
-                    }
-                  });
-                  eventData['participants'] = participantsList;
-                } else {
-                  eventData['participants'] = [];
+                  
+                  events.add(Event.fromJson(eventData));
+                } catch (e) {
+                  print('Error parsing event $key: $e');
                 }
-
-                events.add(Event.fromJson(eventData));
               }
             });
+          } else {
+            print('No events found in database'); // Debug print
           }
 
           if (liveEventSnapshot.exists && liveEventSnapshot.value != null) {
-            final Map<String, dynamic> liveEventData = {};
-            final liveEventValue = liveEventSnapshot.value as Map<dynamic, dynamic>;
-            
-            liveEventValue.forEach((k, v) {
-              if (k is String && k != 'participants') {
-                liveEventData[k] = v;
+            try {
+              final liveEventId = liveEventSnapshot.value as String;
+              
+              // Find the corresponding event from the events list
+              final event = events.firstWhere(
+                (e) => e.eventId == liveEventId,
+                orElse: () => Event(
+                  eventId: '',
+                  eventTitle: '',
+                ),
+              );
+              
+              if (event.eventId.isNotEmpty) {
+                liveEvent = event;
+              } else {
+                liveEvent = null;
               }
-            });
-            liveEventData['eventId'] = liveEventSnapshot.key;
-
-            if (liveEventValue['participants'] != null) {
-              final participantsMap = liveEventValue['participants'] as Map<dynamic, dynamic>;
-              final participantsList = <Map<String, dynamic>>[];
-              participantsMap.forEach((id, data) {
-                if (data != null) {
-                  final participantData = Map<String, dynamic>.from(data as Map);
-                  participantData['id'] = id.toString();
-                  participantsList.add(participantData);
-                }
-              });
-              liveEventData['participants'] = participantsList;
-            } else {
-              liveEventData['participants'] = [];
+            } catch (e) {
+              print('Error parsing live event: $e');
+              liveEvent = null;
             }
-
-            liveEvent = Event.fromJson(liveEventData);
           } else {
             liveEvent = null;
           }
@@ -117,6 +109,7 @@ class _EventListScreenState extends State<EventListScreen> {
   void _createEvent() {
     TextEditingController titleController = TextEditingController();
     TextEditingController textToPrintController = TextEditingController();
+    TextEditingController amountController = TextEditingController();
 
     showDialog(
       context: context,
@@ -131,6 +124,15 @@ class _EventListScreenState extends State<EventListScreen> {
                 labelText: 'Event Title',
                 border: OutlineInputBorder(),
               ),
+            ),
+            SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              decoration: InputDecoration(
+                labelText: 'Amount',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
             ),
             SizedBox(height: 16),
             TextField(
@@ -149,11 +151,14 @@ class _EventListScreenState extends State<EventListScreen> {
               if (titleController.text.trim().isNotEmpty) {
                 final newEvent = Event(
                   eventId: DateTime.now().millisecondsSinceEpoch.toString(),
-                  title: titleController.text.trim(),
+                  eventTitle: titleController.text.trim(),
                   textToPrint: textToPrintController.text.trim(),
+                  amount: int.tryParse(amountController.text) ?? 0,
                 );
                 try {
-                  await _dbRef.child('events').child(newEvent.eventId).set(newEvent.toJson());
+                  final eventData = newEvent.toJson();
+                  print('Creating new event: $eventData'); // Debug print
+                  await _dbRef.child('Events').child(newEvent.eventId).set(eventData);
                   Navigator.pop(context);
                 } catch (e) {
                   print('Error creating event: $e');
@@ -217,7 +222,7 @@ class _EventListScreenState extends State<EventListScreen> {
                                 ),
                               ),
                               Text(
-                                liveEvent!.title,
+                                liveEvent!.eventTitle,
                                 style: TextStyle(fontSize: 16),
                               ),
                             ],
@@ -248,22 +253,37 @@ class _EventListScreenState extends State<EventListScreen> {
                               child: ListTile(
                                 contentPadding: EdgeInsets.all(16),
                                 title: Text(
-                                  event.title,
+                                  event.eventTitle,
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 18,
                                   ),
                                 ),
-                                subtitle: event.textToPrint.isNotEmpty
-                                    ? Padding(
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (event.textToPrint.isNotEmpty)
+                                      Padding(
                                         padding: EdgeInsets.only(top: 8),
                                         child: Text(
                                           event.textToPrint,
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
-                                      )
-                                    : null,
+                                      ),
+                                    if (event.amount > 0)
+                                      Padding(
+                                        padding: EdgeInsets.only(top: 4),
+                                        child: Text(
+                                          'Amount: ${event.amount}',
+                                          style: TextStyle(
+                                            color: Colors.green,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                                 trailing: Icon(Icons.chevron_right),
                                 onTap: () async {
                                   final updatedEvent = await Navigator.push(

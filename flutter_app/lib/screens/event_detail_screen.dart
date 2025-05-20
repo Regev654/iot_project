@@ -23,6 +23,7 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   late List<Participant> participants;
   late TextEditingController textToPrintController;
+  late TextEditingController amountController;
   String search = '';
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
@@ -31,20 +32,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     super.initState();
     participants = [...widget.event.participants];
     textToPrintController = TextEditingController(text: widget.event.textToPrint);
+    amountController = TextEditingController(text: widget.event.amount.toString());
   }
 
   @override
   void dispose() {
     textToPrintController.dispose();
+    amountController.dispose();
     super.dispose();
   }
 
   Future<void> _addParticipantManually() async {
-    if (widget.isLive) {
-      return;
-    }
-
     TextEditingController controller = TextEditingController();
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -64,9 +64,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               if (RegExp(r'^\d+$').hasMatch(id)) {
                 // Check if participant already exists
                 final participantSnapshot = await _dbRef
-                    .child('events')
+                    .child('Events')
                     .child(widget.event.eventId)
-                    .child('participants')
+                    .child('Participants')
                     .child(id)
                     .get();
 
@@ -75,15 +75,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                     SnackBar(content: Text('Participant ID already exists')),
                   );
                 } else {
-                  final participant = Participant(id: id);
+                  final participant = Participant(
+                    id: id,
+                    maxTokens: widget.event.amount,
+                    textToPrint: widget.event.textToPrint,
+                  );
                   setState(() {
                     participants.add(participant);
                   });
                   // Save to Firebase
                   await _dbRef
-                      .child('events')
+                      .child('Events')
                       .child(widget.event.eventId)
-                      .child('participants')
+                      .child('Participants')
                       .child(id)
                       .set(participant.toJson());
                 }
@@ -98,73 +102,114 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _uploadCSV() async {
-    if (widget.isLive) return;
-
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['csv'],
     );
     if (result != null) {
-      final csvContent = utf8.decode(result.files.first.bytes!);
-      final ids = parseUserIDsFromCSV(csvContent);
-      
-      // Check for existing participants
-      final existingParticipants = await _dbRef
-          .child('events')
-          .child(widget.event.eventId)
-          .child('participants')
-          .get();
-
-      final existingIds = existingParticipants.exists
-          ? (existingParticipants.value as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toSet()
-          : <String>{};
-
-      final newParticipants = ids.where((id) => !existingIds.contains(id)).toList();
-      
-      if (newParticipants.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No new participants to add')),
-        );
-        return;
-      }
-
-      // Add new participants
-      for (final id in newParticipants) {
-        final participant = Participant(id: id);
-        setState(() {
-          participants.add(participant);
-        });
-        await _dbRef
-            .child('events')
+      try {
+        final csvContent = utf8.decode(result.files.first.bytes!);
+        final ids = parseUserIDsFromCSV(csvContent);
+        
+        // Check for existing participants
+        final existingParticipants = await _dbRef
+            .child('Events')
             .child(widget.event.eventId)
-            .child('participants')
-            .child(id)
-            .set(participant.toJson());
-      }
+            .child('Participants')
+            .get();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added ${newParticipants.length} new participants')),
-      );
+        final existingIds = existingParticipants.exists
+            ? (existingParticipants.value as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toSet()
+            : <String>{};
+
+        final newParticipants = ids.where((id) => !existingIds.contains(id)).toList();
+        
+        if (newParticipants.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('No new participants to add')),
+          );
+          return;
+        }
+
+        // Add new participants
+        final batch = <String, Map<String, dynamic>>{};
+        for (final id in newParticipants) {
+          final participant = Participant(
+            id: id,
+            maxTokens: widget.event.amount,
+            textToPrint: widget.event.textToPrint,
+          );
+          batch[id] = participant.toJson();
+        }
+
+        // Update database in a single operation
+        await _dbRef
+            .child('Events')
+            .child(widget.event.eventId)
+            .child('Participants')
+            .update(batch);
+
+        // Update local state
+        setState(() {
+          participants.addAll(
+            newParticipants.map((id) => Participant(
+              id: id,
+              maxTokens: widget.event.amount,
+              textToPrint: widget.event.textToPrint,
+            )),
+          );
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Added ${newParticipants.length} new participants')),
+        );
+      } catch (e) {
+        print('Error uploading CSV: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error uploading CSV file')),
+        );
+      }
     }
   }
 
-  Future<void> _toggleGiftStatus(Participant participant) async {
-    if (!widget.isLive) return;
-
+  Future<void> _updateParticipantTokens(Participant participant, int newUsedTokens) async {
     setState(() {
-      participant.hasReceivedGift = !participant.hasReceivedGift;
+      participant.usedTokens = newUsedTokens;
     });
 
     try {
       await _dbRef
-          .child('liveEvent')
-          .child('participants')
+          .child('Events')
+          .child(widget.event.eventId)
+          .child('Participants')
           .child(participant.id)
-          .set(participant.toJson());
+          .update({'usedTokens': newUsedTokens});
     } catch (e) {
-      print('Error updating gift status: $e');
+      print('Error updating tokens: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating gift status')),
+        SnackBar(content: Text('Error updating tokens')),
+      );
+    }
+  }
+
+  Future<void> _removeParticipant(Participant participant) async {
+    try {
+      // Remove from database immediately
+      await _dbRef
+          .child('Events')
+          .child(widget.event.eventId)
+          .child('Participants')
+          .child(participant.id)
+          .remove();
+      
+      // Update local state
+      setState(() {
+        participants.remove(participant);
+      });
+    } catch (e) {
+      print('Error removing participant: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error removing participant')),
       );
     }
   }
@@ -172,29 +217,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Future<void> _startEvent() async {
     try {
       // Remove any existing live event
-      await _dbRef.child('liveEvent').remove();
+      await _dbRef.child('LiveEvent').remove();
       
-      // Create new live event data
-      final Map<String, dynamic> liveEventData = {
-        'eventId': widget.event.eventId,
-        'title': widget.event.title,
-        'textToPrint': textToPrintController.text.trim(),
-        'isLive': true,
-      };
-
-      // Save event data first
-      await _dbRef.child('liveEvent').update(liveEventData);
-
-      // Save participants individually using their IDs as keys
-      final participantsRef = _dbRef.child('liveEvent').child('participants');
-      for (final participant in participants) {
-        await participantsRef.child(participant.id).set(participant.toJson());
-      }
-
-      // Update the original event's isLive status
-      await _dbRef.child('events').child(widget.event.eventId).update({
-        'isLive': true,
-      });
+      // Create new live event with just the event ID as a string value
+      await _dbRef.child('LiveEvent').set(widget.event.eventId);
       
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Event Started')),
@@ -203,10 +229,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       // Create the event object for navigation
       final liveEvent = Event(
         eventId: widget.event.eventId,
-        title: widget.event.title,
+        eventTitle: widget.event.eventTitle,
         textToPrint: textToPrintController.text.trim(),
+        amount: int.tryParse(amountController.text) ?? 0,
         participants: participants,
-        isLive: true,
       );
       
       Navigator.pop(context, liveEvent);
@@ -219,30 +245,34 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   }
 
   Future<void> _saveEvent() async {
-    if (widget.isLive) return;
-
     try {
-      // Save participants individually using their IDs as keys
+      final newTextToPrint = textToPrintController.text.trim();
+      final newAmount = int.tryParse(amountController.text) ?? 0;
+
+      // Update participants with new textToPrint and maxTokens
       final participantsRef = _dbRef
-          .child('events')
+          .child('Events')
           .child(widget.event.eventId)
-          .child('participants');
+          .child('Participants');
       
       for (final participant in participants) {
+        participant.textToPrint = newTextToPrint;
+        participant.maxTokens = newAmount;
         await participantsRef.child(participant.id).set(participant.toJson());
       }
 
       // Save other event data
-      await _dbRef.child('events').child(widget.event.eventId).update({
-        'title': widget.event.title,
-        'textToPrint': textToPrintController.text.trim(),
-        'isLive': false,
+      await _dbRef.child('Events').child(widget.event.eventId).update({
+        'eventTitle': widget.event.eventTitle,
+        'textToPrint': newTextToPrint,
+        'amount': newAmount,
       });
 
       final updatedEvent = Event(
         eventId: widget.event.eventId,
-        title: widget.event.title,
-        textToPrint: textToPrintController.text.trim(),
+        eventTitle: widget.event.eventTitle,
+        textToPrint: newTextToPrint,
+        amount: newAmount,
         participants: participants,
       );
 
@@ -258,29 +288,74 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final filtered = participants.where((p) => p.id.contains(search)).toList();
+    final theme = Theme.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.event.title),
+        title: Text(widget.event.eventTitle),
         elevation: 0,
-        backgroundColor: widget.isLive ? Colors.green : Theme.of(context).colorScheme.primary,
+        backgroundColor: theme.colorScheme.primary,
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          children: [
-            if (!widget.isLive)
-              TextField(
-                controller: textToPrintController,
-                decoration: InputDecoration(
-                  labelText: 'Text to Print',
-                  border: OutlineInputBorder(),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              theme.colorScheme.primary.withOpacity(0.1),
+              Colors.white,
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                maxLines: 3,
-                enabled: !widget.isLive,
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: textToPrintController,
+                          decoration: InputDecoration(
+                            labelText: 'Text to Print',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          maxLines: 3,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: amountController,
+                          decoration: InputDecoration(
+                            labelText: 'Amount',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                          ),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            SizedBox(height: 16),
-            if (!widget.isLive)
+              SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -288,6 +363,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       onPressed: _uploadCSV,
                       icon: Icon(Icons.upload_file),
                       label: Text('Upload CSV'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
                   ),
                   SizedBox(width: 10),
@@ -296,50 +377,144 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       onPressed: _addParticipantManually,
                       icon: Icon(Icons.person_add),
                       label: Text('Add Participant'),
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: 'Search by ID',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+              SizedBox(height: 16),
+              TextField(
+                decoration: InputDecoration(
+                  labelText: 'Search by ID',
+                  prefixIcon: Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                onChanged: (value) => setState(() => search = value),
               ),
-              onChanged: (value) => setState(() => search = value),
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: filtered.length,
-                itemBuilder: (_, index) {
-                  final participant = filtered[index];
-                  return Card(
-                    elevation: 1,
-                    margin: EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      title: Text(participant.id),
-                      trailing: widget.isLive
-                          ? Switch(
-                              value: participant.hasReceivedGift,
-                              onChanged: (_) => _toggleGiftStatus(participant),
-                              activeColor: Colors.green,
-                            )
-                          : IconButton(
-                              icon: Icon(Icons.delete),
-                              onPressed: () {
-                                setState(() {
-                                  participants.remove(participant);
-                                });
-                              },
+              SizedBox(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (_, index) {
+                    final participant = filtered[index];
+                    return Card(
+                      elevation: 2,
+                      margin: EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            // ID and Text to Print
+                            Expanded(
+                              flex: 2,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      participant.id,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ),
+                                  if (participant.textToPrint.isNotEmpty)
+                                    Padding(
+                                      padding: EdgeInsets.only(top: 4),
+                                      child: Text(
+                                        participant.textToPrint,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.grey[700],
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                    ),
-                  );
-                },
+                            // Tokens and Controls
+                            Expanded(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 8),
+                                    child: Text(
+                                      '${participant.usedTokens}/${participant.maxTokens}',
+                                      style: TextStyle(
+                                        color: theme.colorScheme.primary,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(Icons.remove_circle_outline, size: 24),
+                                    color: theme.colorScheme.primary,
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                    onPressed: participant.usedTokens > 0
+                                        ? () => _updateParticipantTokens(
+                                            participant,
+                                            participant.usedTokens - 1)
+                                        : null,
+                                  ),
+                                  SizedBox(width: 4),
+                                  IconButton(
+                                    icon: Icon(Icons.add_circle_outline, size: 24),
+                                    color: theme.colorScheme.primary,
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                    onPressed: participant.usedTokens < participant.maxTokens
+                                        ? () => _updateParticipantTokens(
+                                            participant,
+                                            participant.usedTokens + 1)
+                                        : null,
+                                  ),
+                                  SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline, size: 24),
+                                    color: Colors.red[400],
+                                    padding: EdgeInsets.all(4),
+                                    constraints: BoxConstraints(),
+                                    onPressed: () => _removeParticipant(participant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            if (!widget.isLive)
+              SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -349,6 +524,9 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       label: Text('Save'),
                       style: ElevatedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
@@ -361,12 +539,16 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );

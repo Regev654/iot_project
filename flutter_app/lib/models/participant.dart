@@ -1,19 +1,27 @@
 class Participant {
   final String id;
-  bool hasReceivedGift;
+  int usedTokens;
+  int maxTokens;
+  String textToPrint;
 
   Participant({
     required this.id,
-    this.hasReceivedGift = false,
+    this.usedTokens = 0,
+    this.maxTokens = 0,
+    this.textToPrint = '',
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'hasReceivedGift': hasReceivedGift,
+    'ID': id,
+    'usedTokens': usedTokens,
+    'maxTokens': maxTokens,
+    'textToPrint': textToPrint,
   };
 
   factory Participant.fromJson(Map<String, dynamic> json) => Participant(
-    id: json['id'] as String,
-    hasReceivedGift: json['hasReceivedGift'] as bool? ?? false,
+    id: json['ID'] as String,
+    usedTokens: json['usedTokens'] as int? ?? 0,
+    maxTokens: json['maxTokens'] as int? ?? 0,
+    textToPrint: json['textToPrint'] as String? ?? '',
   );
 } 
