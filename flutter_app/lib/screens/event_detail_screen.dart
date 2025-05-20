@@ -6,6 +6,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../models/event.dart';
 import '../models/participant.dart';
 import '../utils/csv_parser.dart';
+import 'event_stats_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
@@ -285,6 +286,58 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  Future<void> _resetTokens() async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Reset Tokens'),
+          content: Text('Are you sure you want to reset all used tokens to 0?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text('Reset'),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Update all participants in the database
+      final participantsRef = _dbRef
+          .child('Events')
+          .child(widget.event.eventId)
+          .child('Participants');
+      
+      for (final participant in participants) {
+        participant.usedTokens = 0;
+        await participantsRef.child(participant.id).update({
+          'usedTokens': 0,
+        });
+      }
+
+      setState(() {}); // Refresh the UI
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('All tokens have been reset')),
+      );
+    } catch (e) {
+      print('Error resetting tokens: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error resetting tokens')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = participants.where((p) => p.id.contains(search)).toList();
@@ -295,6 +348,19 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         title: Text(widget.event.eventTitle),
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.bar_chart),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EventStatsScreen(event: widget.event),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -318,38 +384,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ),
                 child: Padding(
                   padding: EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
                     children: [
-                      Expanded(
-                        flex: 2,
-                        child: TextField(
-                          controller: textToPrintController,
-                          decoration: InputDecoration(
-                            labelText: 'Text to Print',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
+                      TextField(
+                        controller: textToPrintController,
+                        decoration: InputDecoration(
+                          labelText: 'Text to Print',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          maxLines: 3,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          alignLabelWithHint: true,
                         ),
+                        maxLines: 1,
+                        style: TextStyle(fontSize: 14),
+                        textAlignVertical: TextAlignVertical.center,
                       ),
-                      SizedBox(width: 16),
-                      Expanded(
-                        child: TextField(
-                          controller: amountController,
-                          decoration: InputDecoration(
-                            labelText: 'Amount',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: Colors.white,
+                      SizedBox(height: 12),
+                      TextField(
+                        controller: amountController,
+                        decoration: InputDecoration(
+                          labelText: 'Amount',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          keyboardType: TextInputType.number,
+                          filled: true,
+                          fillColor: Colors.white,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontSize: 14),
+                        textAlignVertical: TextAlignVertical.center,
                       ),
                     ],
                   ),
@@ -388,17 +455,36 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 ],
               ),
               SizedBox(height: 16),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: 'Search by ID',
-                  prefixIcon: Icon(Icons.search),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        labelText: 'Search by ID',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                      ),
+                      onChanged: (value) => setState(() => search = value),
+                    ),
                   ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-                onChanged: (value) => setState(() => search = value),
+                  SizedBox(width: 10),
+                  ElevatedButton.icon(
+                    onPressed: _resetTokens,
+                    icon: Icon(Icons.refresh),
+                    label: Text('Reset'),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      backgroundColor: Colors.orange,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               SizedBox(height: 16),
               Expanded(
@@ -424,8 +510,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 children: [
                                   Container(
                                     padding: EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 6,
+                                      horizontal: 8,
+                                      vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
                                       color: theme.colorScheme.primary.withOpacity(0.1),
@@ -462,19 +548,18 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
                                   Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 8),
+                                    padding: EdgeInsets.symmetric(horizontal: 4),
                                     child: Text(
                                       '${participant.usedTokens}/${participant.maxTokens}',
                                       style: TextStyle(
                                         color: theme.colorScheme.primary,
-                                        fontSize: 18,
+                                        fontSize: 16,
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                   ),
-                                  SizedBox(width: 8),
                                   IconButton(
-                                    icon: Icon(Icons.remove_circle_outline, size: 24),
+                                    icon: Icon(Icons.remove_circle_outline, size: 20),
                                     color: theme.colorScheme.primary,
                                     padding: EdgeInsets.all(4),
                                     constraints: BoxConstraints(),
@@ -484,9 +569,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                             participant.usedTokens - 1)
                                         : null,
                                   ),
-                                  SizedBox(width: 4),
                                   IconButton(
-                                    icon: Icon(Icons.add_circle_outline, size: 24),
+                                    icon: Icon(Icons.add_circle_outline, size: 20),
                                     color: theme.colorScheme.primary,
                                     padding: EdgeInsets.all(4),
                                     constraints: BoxConstraints(),
@@ -496,9 +580,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                             participant.usedTokens + 1)
                                         : null,
                                   ),
-                                  SizedBox(width: 8),
                                   IconButton(
-                                    icon: Icon(Icons.delete_outline, size: 24),
+                                    icon: Icon(Icons.delete_outline, size: 20),
                                     color: Colors.red[400],
                                     padding: EdgeInsets.all(4),
                                     constraints: BoxConstraints(),
