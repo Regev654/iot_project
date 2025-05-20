@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:firebase_database/firebase_database.dart';
 import '../models/event.dart';
@@ -25,8 +26,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late List<Participant> participants;
   late TextEditingController textToPrintController;
   late TextEditingController amountController;
+  late TextEditingController searchController;
   String search = '';
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  StreamSubscription? _participantsSubscription;
 
   @override
   void initState() {
@@ -34,12 +37,40 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     participants = [...widget.event.participants];
     textToPrintController = TextEditingController(text: widget.event.textToPrint);
     amountController = TextEditingController(text: widget.event.amount.toString());
+    searchController = TextEditingController();
+    _setupParticipantsListener();
+  }
+
+  void _setupParticipantsListener() {
+    final participantsRef = _dbRef
+        .child('Events')
+        .child(widget.event.eventId)
+        .child('Participants');
+
+    _participantsSubscription = participantsRef.onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
+        setState(() {
+          participants = data.entries.map((entry) {
+            final participantData = entry.value as Map<dynamic, dynamic>;
+            return Participant(
+              id: entry.key.toString(),
+              maxTokens: participantData['maxTokens'] ?? 0,
+              usedTokens: participantData['usedTokens'] ?? 0,
+              textToPrint: participantData['textToPrint'] ?? '',
+            );
+          }).toList();
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _participantsSubscription?.cancel();
     textToPrintController.dispose();
     amountController.dispose();
+    searchController.dispose();
     super.dispose();
   }
 
@@ -459,6 +490,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                 children: [
                   Expanded(
                     child: TextField(
+                      controller: searchController,
                       decoration: InputDecoration(
                         labelText: 'Search by ID',
                         prefixIcon: Icon(Icons.search),
