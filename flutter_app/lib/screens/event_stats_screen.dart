@@ -21,7 +21,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
   @override
   void initState() {
     super.initState();
-    participants = [...widget.event.participants];
+    participants = widget.event.participants.values.toList();
     _setupParticipantsListener();
   }
 

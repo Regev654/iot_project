@@ -8,380 +8,113 @@ import '../models/event.dart';
 import '../models/participant.dart';
 import '../utils/csv_parser.dart';
 import 'event_stats_screen.dart';
+import 'groups_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
-  final bool isLive;
 
-  EventDetailScreen({
-    required this.event,
-    this.isLive = false,
-  });
+  const EventDetailScreen({super.key, required this.event});
 
   @override
-  _EventDetailScreenState createState() => _EventDetailScreenState();
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
-  late List<Participant> participants;
-  late TextEditingController textToPrintController;
-  late TextEditingController amountController;
-  late TextEditingController searchController;
-  String search = '';
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
-  StreamSubscription? _participantsSubscription;
+  late DatabaseReference _eventRef;
+  late StreamSubscription _participantsSubscription;
+  Map<String, Participant> _participants = {};
+  bool _isLoading = true;
+  String _error = '';
+  late TextEditingController _textToPrintController;
+  bool _isEditing = false;
 
   @override
   void initState() {
     super.initState();
-    participants = [...widget.event.participants];
-    textToPrintController = TextEditingController(text: widget.event.textToPrint);
-    amountController = TextEditingController(text: widget.event.amount.toString());
-    searchController = TextEditingController();
+    _eventRef = FirebaseDatabase.instance.ref().child('Events/${widget.event.eventId}');
+    _textToPrintController = TextEditingController(text: widget.event.textToPrint);
     _setupParticipantsListener();
   }
 
   void _setupParticipantsListener() {
-    final participantsRef = _dbRef
-        .child('Events')
-        .child(widget.event.eventId)
-        .child('Participants');
-
-    _participantsSubscription = participantsRef.onValue.listen((event) {
+    _participantsSubscription = _eventRef.child('Participants').onValue.listen((event) {
       if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
+        final data = event.snapshot.value as Map<dynamic, dynamic>;
+        final participants = <String, Participant>{};
+        
+        data.forEach((key, value) {
+          final participantData = value as Map<dynamic, dynamic>;
+          participants[key.toString()] = Participant(
+            id: key.toString(),
+            maxTokens: participantData['maxTokens'] ?? 0,
+            usedTokens: participantData['usedTokens'] ?? 0,
+            textToPrint: participantData['textToPrint'] ?? '',
+          );
+        });
+
         setState(() {
-          participants = data.entries.map((entry) {
-            final participantData = entry.value as Map<dynamic, dynamic>;
-            return Participant(
-              id: entry.key.toString(),
-              maxTokens: participantData['maxTokens'] ?? 0,
-              usedTokens: participantData['usedTokens'] ?? 0,
-              textToPrint: participantData['textToPrint'] ?? '',
-            );
-          }).toList();
+          _participants = participants;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _participants = {};
+          _isLoading = false;
         });
       }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
     });
+  }
+
+  Future<void> _updateTextToPrint() async {
+    if (_textToPrintController.text.isEmpty) return;
+
+    try {
+      // Update event's textToPrint
+      await _eventRef.update({'textToPrint': _textToPrintController.text});
+
+      // Update all participants' textToPrint
+      final batch = <String, Map<String, dynamic>>{};
+      for (final participant in _participants.values) {
+        batch[participant.id] = {
+          'textToPrint': _textToPrintController.text,
+          'maxTokens': participant.maxTokens,
+          'usedTokens': participant.usedTokens,
+        };
+      }
+      await _eventRef.child('Participants').update(batch);
+
+      setState(() => _isEditing = false);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating text: $e')),
+        );
+      }
+    }
   }
 
   @override
   void dispose() {
-    _participantsSubscription?.cancel();
-    textToPrintController.dispose();
-    amountController.dispose();
-    searchController.dispose();
+    _participantsSubscription.cancel();
+    _textToPrintController.dispose();
     super.dispose();
-  }
-
-  Future<void> _addParticipantManually() async {
-    TextEditingController controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Add Participant'),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: 'User ID (digits only)',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.number,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final id = controller.text.trim();
-              if (RegExp(r'^\d+$').hasMatch(id)) {
-                // Check if participant already exists
-                final participantSnapshot = await _dbRef
-                    .child('Events')
-                    .child(widget.event.eventId)
-                    .child('Participants')
-                    .child(id)
-                    .get();
-
-                if (participantSnapshot.exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Participant ID already exists')),
-                  );
-                } else {
-                  final participant = Participant(
-                    id: id,
-                    maxTokens: widget.event.amount,
-                    textToPrint: widget.event.textToPrint,
-                  );
-                  setState(() {
-                    participants.add(participant);
-                  });
-                  // Save to Firebase
-                  await _dbRef
-                      .child('Events')
-                      .child(widget.event.eventId)
-                      .child('Participants')
-                      .child(id)
-                      .set(participant.toJson());
-                }
-              }
-              Navigator.pop(context);
-            },
-            child: Text('Add'),
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<void> _uploadCSV() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
-    if (result != null) {
-      try {
-        final csvContent = utf8.decode(result.files.first.bytes!);
-        final ids = parseUserIDsFromCSV(csvContent);
-        
-        // Check for existing participants
-        final existingParticipants = await _dbRef
-            .child('Events')
-            .child(widget.event.eventId)
-            .child('Participants')
-            .get();
-
-        final existingIds = existingParticipants.exists
-            ? (existingParticipants.value as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toSet()
-            : <String>{};
-
-        final newParticipants = ids.where((id) => !existingIds.contains(id)).toList();
-        
-        if (newParticipants.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No new participants to add')),
-          );
-          return;
-        }
-
-        // Add new participants
-        final batch = <String, Map<String, dynamic>>{};
-        for (final id in newParticipants) {
-          final participant = Participant(
-            id: id,
-            maxTokens: widget.event.amount,
-            textToPrint: widget.event.textToPrint,
-          );
-          batch[id] = participant.toJson();
-        }
-
-        // Update database in a single operation
-        await _dbRef
-            .child('Events')
-            .child(widget.event.eventId)
-            .child('Participants')
-            .update(batch);
-
-        // Update local state
-        setState(() {
-          participants.addAll(
-            newParticipants.map((id) => Participant(
-              id: id,
-              maxTokens: widget.event.amount,
-              textToPrint: widget.event.textToPrint,
-            )),
-          );
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added ${newParticipants.length} new participants')),
-        );
-      } catch (e) {
-        print('Error uploading CSV: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading CSV file')),
-        );
-      }
-    }
-  }
-
-  Future<void> _updateParticipantTokens(Participant participant, int newUsedTokens) async {
-    setState(() {
-      participant.usedTokens = newUsedTokens;
-    });
-
-    try {
-      await _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants')
-          .child(participant.id)
-          .update({'usedTokens': newUsedTokens});
-    } catch (e) {
-      print('Error updating tokens: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating tokens')),
-      );
-    }
-  }
-
-  Future<void> _removeParticipant(Participant participant) async {
-    try {
-      // Remove from database immediately
-      await _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants')
-          .child(participant.id)
-          .remove();
-      
-      // Update local state
-      setState(() {
-        participants.remove(participant);
-      });
-    } catch (e) {
-      print('Error removing participant: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error removing participant')),
-      );
-    }
-  }
-
-  Future<void> _startEvent() async {
-    try {
-      // Remove any existing live event
-      await _dbRef.child('LiveEvent').remove();
-      
-      // Create new live event with just the event ID as a string value
-      await _dbRef.child('LiveEvent').set(widget.event.eventId);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Event Started')),
-      );
-      
-      // Create the event object for navigation
-      final liveEvent = Event(
-        eventId: widget.event.eventId,
-        eventTitle: widget.event.eventTitle,
-        textToPrint: textToPrintController.text.trim(),
-        amount: int.tryParse(amountController.text) ?? 0,
-        participants: participants,
-      );
-      
-      Navigator.pop(context, liveEvent);
-    } catch (e) {
-      print('Error starting event: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error starting event')),
-      );
-    }
-  }
-
-  Future<void> _saveEvent() async {
-    try {
-      final newTextToPrint = textToPrintController.text.trim();
-      final newAmount = int.tryParse(amountController.text) ?? 0;
-
-      // Update participants with new textToPrint and maxTokens
-      final participantsRef = _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants');
-      
-      for (final participant in participants) {
-        participant.textToPrint = newTextToPrint;
-        participant.maxTokens = newAmount;
-        await participantsRef.child(participant.id).set(participant.toJson());
-      }
-
-      // Save other event data
-      await _dbRef.child('Events').child(widget.event.eventId).update({
-        'eventTitle': widget.event.eventTitle,
-        'textToPrint': newTextToPrint,
-        'amount': newAmount,
-      });
-
-      final updatedEvent = Event(
-        eventId: widget.event.eventId,
-        eventTitle: widget.event.eventTitle,
-        textToPrint: newTextToPrint,
-        amount: newAmount,
-        participants: participants,
-      );
-
-      Navigator.pop(context, updatedEvent);
-    } catch (e) {
-      print('Error saving event: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving event')),
-      );
-    }
-  }
-
-  Future<void> _resetTokens() async {
-    try {
-      // Show confirmation dialog
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Reset Tokens'),
-          content: Text('Are you sure you want to reset all used tokens to 0?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Reset'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed != true) return;
-
-      // Update all participants in the database
-      final participantsRef = _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants');
-      
-      for (final participant in participants) {
-        participant.usedTokens = 0;
-        await participantsRef.child(participant.id).update({
-          'usedTokens': 0,
-        });
-      }
-
-      setState(() {}); // Refresh the UI
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('All tokens have been reset')),
-      );
-    } catch (e) {
-      print('Error resetting tokens: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error resetting tokens')),
-      );
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = participants.where((p) => p.id.contains(search)).toList();
     final theme = Theme.of(context);
-
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.event.eventTitle),
-        elevation: 0,
-        backgroundColor: theme.colorScheme.primary,
         actions: [
           IconButton(
-            icon: Icon(Icons.bar_chart),
+            icon: const Icon(Icons.analytics),
             onPressed: () {
               Navigator.push(
                 context,
@@ -393,278 +126,169 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              theme.colorScheme.primary.withOpacity(0.1),
-              Colors.white,
-            ],
-          ),
-        ),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(child: Text('Error: $_error'))
+              : Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        theme.colorScheme.primary.withOpacity(0.1),
+                        theme.colorScheme.surface,
+                      ],
+                    ),
+                  ),
                   child: Column(
                     children: [
-                      TextField(
-                        controller: textToPrintController,
-                        decoration: InputDecoration(
-                          labelText: 'Text to Print',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          alignLabelWithHint: true,
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surface,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                        maxLines: 1,
-                        style: TextStyle(fontSize: 14),
-                        textAlignVertical: TextAlignVertical.center,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Text to Print:',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: Icon(
+                                    _isEditing ? Icons.save : Icons.edit,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  onPressed: () {
+                                    if (_isEditing) {
+                                      _updateTextToPrint();
+                                    } else {
+                                      setState(() => _isEditing = true);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (_isEditing)
+                              TextField(
+                                controller: _textToPrintController,
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  filled: true,
+                                  fillColor: theme.colorScheme.surface,
+                                ),
+                                maxLines: 2,
+                              )
+                            else
+                              Text(
+                                widget.event.textToPrint,
+                                style: theme.textTheme.bodyLarge,
+                              ),
+                          ],
+                        ),
                       ),
-                      SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        decoration: InputDecoration(
-                          labelText: 'Amount',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _participants.length,
+                          itemBuilder: (context, index) {
+                            final participant = _participants.values.elementAt(index);
+                            final usagePercentage = participant.maxTokens > 0
+                                ? (participant.usedTokens / participant.maxTokens) * 100
+                                : 0.0;
+                            
+                            return Card(
+                              elevation: 2,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primary.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            participant.id,
+                                            style: TextStyle(
+                                              color: theme.colorScheme.primary,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          '${participant.usedTokens}/${participant.maxTokens}',
+                                          style: theme.textTheme.titleMedium?.copyWith(
+                                            color: theme.colorScheme.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: LinearProgressIndicator(
+                                        value: usagePercentage / 100,
+                                        backgroundColor: Colors.grey[200],
+                                        valueColor: AlwaysStoppedAnimation<Color>(
+                                          usagePercentage > 80
+                                              ? Colors.red
+                                              : usagePercentage > 50
+                                                  ? Colors.orange
+                                                  : Colors.green,
+                                        ),
+                                        minHeight: 8,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: 14),
-                        textAlignVertical: TextAlignVertical.center,
                       ),
                     ],
                   ),
                 ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _uploadCSV,
-                      icon: Icon(Icons.upload_file),
-                      label: Text('Upload CSV'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _addParticipantManually,
-                      icon: Icon(Icons.person_add),
-                      label: Text('Add Participant'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        labelText: 'Search by ID',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      onChanged: (value) => setState(() => search = value),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _resetTokens,
-                    icon: Icon(Icons.refresh),
-                    label: Text('Reset'),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      backgroundColor: Colors.orange,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (_, index) {
-                    final participant = filtered[index];
-                    return Card(
-                      elevation: 2,
-                      margin: EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            // ID and Text to Print
-                            Expanded(
-                              flex: 2,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      participant.id,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
-                                  ),
-                                  if (participant.textToPrint.isNotEmpty)
-                                    Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        participant.textToPrint,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 12,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            // Tokens and Controls
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
-                                    child: Text(
-                                      '${participant.usedTokens}/${participant.maxTokens}',
-                                      style: TextStyle(
-                                        color: theme.colorScheme.primary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.remove_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens > 0
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens - 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.add_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens < participant.maxTokens
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens + 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline, size: 20),
-                                    color: Colors.red[400],
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: () => _removeParticipant(participant),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _saveEvent,
-                      icon: Icon(Icons.save),
-                      label: Text('Save'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _startEvent,
-                      icon: Icon(Icons.play_arrow),
-                      label: Text('Start Event'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GroupsScreen(event: widget.event),
+            ),
+          );
+        },
+        icon: const Icon(Icons.group),
+        label: const Text('Manage Groups'),
       ),
     );
   }
