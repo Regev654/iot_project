@@ -53,6 +53,7 @@ public:
             pixels.show();
             delay(DELAY);
         }
+        Serial.println("led finished");
     }
 
     void displayError()

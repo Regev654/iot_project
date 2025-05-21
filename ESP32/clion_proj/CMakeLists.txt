@@ -8,4 +8,7 @@ add_executable(iot arduino_proj.cpp
         Adafruit_NeoPixel.h
         main.cpp
         Interfaces.h
-        IdChecker.h)
+        IdChecker.h
+        secrets.h
+        FirebaseDB.h
+        FirebaseClient.h)

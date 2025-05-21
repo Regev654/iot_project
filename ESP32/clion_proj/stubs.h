@@ -11,6 +11,7 @@ class SerialObj
 public:
     void printf(const std::string&){}
     void println(const std::string&){}
+    void print(const std::string&){}
     size_t printf(const char *format, ...) {return 0;}
     void begin(int){}
 };
