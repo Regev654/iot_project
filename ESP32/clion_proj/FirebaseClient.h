@@ -44,6 +44,7 @@ public:
         static T a;
         return a;
     }
+    String event(){return {};}
 };
 
 class AsyncResult{
@@ -51,8 +52,10 @@ public:
     bool isResult(){return true;}
     bool isError(){return false;}
     bool available(){return true;}
+    size_t length(){return 0;}
     FirebaseError error(){return {};}
     String uid(){return {};}
+    const char* c_str(){return "";}
 
     template<class T>
     T& to(){
@@ -76,6 +79,9 @@ public:
     void setSSEFilters(const char* filters){}
     void get(AsyncClientClass aClient, const char* path, AsyncResult res, bool flag){}
 
+    template<class T>
+    void set(AsyncClientClass aClient, const char* path, T data, AsyncResult res){}
+
 
 };
 
@@ -95,9 +101,14 @@ public:
 
     IPAddress localIP(){return {};}
 
+    const char* SSID() {return "";}
+
 };
 
-
+class object_t{
+public:
+    object_t(const char* str){}
+};
 WiFiClass WiFi;
 
 int auth_debug_print;

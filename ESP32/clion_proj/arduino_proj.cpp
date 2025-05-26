@@ -14,7 +14,7 @@ FirebaseDB firebaseDB;
 //e (5) rmt: rmt_new_tx_channel(269): not able to power down in light sleep neopixel
 LedIndicator ledIndicator;
 Printer printer;
-IdChecker idChecker(&printer, &ledIndicator);
+IdChecker idChecker(&printer, &ledIndicator, &firebaseDB);
 MagneticReader magneticReader(&idChecker);
 BarcodeScanner barcodeScanner(&idChecker);
 
@@ -36,4 +36,5 @@ void loop() {
     firebaseDB.onTrigger();
     magneticReader.onTrigger();
     barcodeScanner.onTrigger();
+    idChecker.onTrigger();
 }

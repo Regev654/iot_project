@@ -11,3 +11,6 @@ ESP32/arduino_proj/MagneticReader.h
 ESP32/arduino_proj/parameters.h
 ESP32/arduino_proj/Printer.h
 ESP32/clion_proj/secrets.h
+ESP32/arduino_proj/User.h
+ESP32/clion_proj/last_move_times.json
+ESP32/arduino_proj/FirebaseDB.h

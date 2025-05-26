@@ -5,8 +5,9 @@
 #include "secrets.h"
 #include "FirebaseClient.h"
 #include "ExampleFunctions.h"
-
+#include "User.h"
 #include <string>
+#include <memory>
 
 class FirebaseDB
 {
@@ -74,14 +75,39 @@ public:
         {
             Serial.print(".");
             onTrigger();
-            delay(100);
+            delay(500);
         }
+        Serial.println("Done waiting for FirebaseDB connection");
     }
+
+    std::unique_ptr<AsyncResult> getUser(const std::string& id)
+    {
+        auto databaseResult = std::make_unique<AsyncResult>();
+        database.get(fb_client, getUserUrl(id).c_str(), *databaseResult, false);
+        return databaseResult;
+    }
+
+    std::unique_ptr<AsyncResult> setUser(const std::string& id, User user)
+    {
+        auto databaseResult = std::make_unique<AsyncResult>();
+        database.set(fb_client, getUserUrl(id).c_str(), user.toObject_t(), *databaseResult);
+        return databaseResult;
+    }
+
+    std::unique_ptr<AsyncResult> updateUsedTokens(const std::string& id, int amount)
+    {
+        auto databaseResult = std::make_unique<AsyncResult>();
+        database.set<int>(fb_client, getTokensUrl(id).c_str(), amount ,*databaseResult);
+        return databaseResult;
+    }
+
+
 
 private:
     void registerActiveEvent()
     {
         if(!isSetActiveEvent) {
+            Serial.println("Registering active event");
             database.setSSEFilters("get,put,patch");
             database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
             isSetActiveEvent = true;
@@ -101,10 +127,30 @@ private:
 
         if (!activeEventResult.available())
             return;
-
-        RealtimeDatabaseResult& stream = activeEventResult.to<RealtimeDatabaseResult>();
+        Firebase.printf("task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
+        auto& stream = activeEventResult.to<RealtimeDatabaseResult>();
+        if(std::string("keep-alive") == stream.event().c_str())
+        {
+            Serial.println("Keep-alive event received, skipping update");
+            return;
+        }
         activeEvent = stream.to<const char *>();
+        if(activeEvent.empty())
+        {
+            Serial.println("Active event is empty, skipping update");
+            return;
+        }
         Serial.printf("Active event updated: %s\n", activeEvent.c_str());
+    }
+
+    std::string getUserUrl(const std::string& id) const
+    {
+        return "Events/" + activeEvent + "/Participants/" + id;
+    }
+
+    std::string getTokensUrl(const std::string& id) const
+    {
+        return getUserUrl(id) + "/usedTokens";
     }
 
 

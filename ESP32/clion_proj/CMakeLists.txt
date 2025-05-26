@@ -11,4 +11,7 @@ add_executable(iot arduino_proj.cpp
         IdChecker.h
         secrets.h
         FirebaseDB.h
-        FirebaseClient.h)
+        FirebaseClient.h
+        User.h
+        ArduinoJson.h
+        WiFiMulti.h)
