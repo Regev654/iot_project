@@ -34,11 +34,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   void initState() {
     super.initState();
-    participants = [...widget.event.participants];
-    textToPrintController = TextEditingController(text: widget.event.textToPrint);
-    amountController = TextEditingController(text: widget.event.amount.toString());
-    searchController = TextEditingController();
-    _setupParticipantsListener();
+    try {
+      participants = widget.event.participants.map((p) => Participant(
+        id: p.id,
+        maxTokens: p.maxTokens,
+        usedTokens: p.usedTokens,
+        textToPrint: p.textToPrint,
+      )).toList();
+      textToPrintController = TextEditingController(text: widget.event.textToPrint);
+      amountController = TextEditingController(text: widget.event.amount.toString());
+      searchController = TextEditingController();
+      _setupParticipantsListener();
+    } catch (e) {
+      print('Error in initState: $e');
+      participants = [];
+      textToPrintController = TextEditingController();
+      amountController = TextEditingController();
+      searchController = TextEditingController();
+    }
   }
 
   void _setupParticipantsListener() {
@@ -49,19 +62,52 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
     _participantsSubscription = participantsRef.onValue.listen((event) {
       if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
+        try {
+          final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
+          setState(() {
+            participants = data.entries.map((entry) {
+              if (entry.value == null) {
+                print('Warning: Null value for participant ${entry.key}');
+                return Participant(
+                  id: entry.key.toString(),
+                  maxTokens: widget.event.amount,
+                  usedTokens: 0,
+                  textToPrint: widget.event.textToPrint,
+                );
+              }
+              
+              final participantData = entry.value as Map<dynamic, dynamic>;
+              return Participant(
+                id: entry.key.toString(),
+                maxTokens: participantData['maxTokens'] ?? widget.event.amount,
+                usedTokens: participantData['usedTokens'] ?? 0,
+                textToPrint: participantData['textToPrint'] ?? widget.event.textToPrint,
+              );
+            }).toList();
+          });
+        } catch (e) {
+          print('Error processing participants data: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error loading participants data'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } else {
+        print('No participants data found');
         setState(() {
-          participants = data.entries.map((entry) {
-            final participantData = entry.value as Map<dynamic, dynamic>;
-            return Participant(
-              id: entry.key.toString(),
-              maxTokens: participantData['maxTokens'] ?? 0,
-              usedTokens: participantData['usedTokens'] ?? 0,
-              textToPrint: participantData['textToPrint'] ?? '',
-            );
-          }).toList();
+          participants = [];
         });
       }
+    }, onError: (error) {
+      print('Error in participants listener: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error connecting to database'),
+          backgroundColor: Colors.red,
+        ),
+      );
     });
   }
 
@@ -181,16 +227,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             .child('Participants')
             .update(batch);
 
-        // Update local state
-        setState(() {
-          participants.addAll(
-            newParticipants.map((id) => Participant(
-              id: id,
-              maxTokens: widget.event.amount,
-              textToPrint: widget.event.textToPrint,
-            )),
-          );
-        });
+        // The local state will be updated automatically by the _setupParticipantsListener
+        // No need to manually update the local state here
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Added ${newParticipants.length} new participants')),
@@ -532,97 +570,154 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       ),
                       child: Padding(
                         padding: EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            // ID and Text to Print
-                            Expanded(
-                              flex: 2,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      participant.id,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.primary,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final isSmallScreen = constraints.maxWidth < 400;
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    // ID and Text to Print
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              participant.id,
+                                              style: TextStyle(
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.bold,
+                                                color: theme.colorScheme.primary,
+                                              ),
+                                            ),
+                                          ),
+                                          if (participant.textToPrint.isNotEmpty)
+                                            Padding(
+                                              padding: EdgeInsets.only(top: 4),
+                                              child: Text(
+                                                participant.textToPrint,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  color: Colors.grey[700],
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                  if (participant.textToPrint.isNotEmpty)
-                                    Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        participant.textToPrint,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                    // Tokens and Controls
+                                    if (!isSmallScreen)
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.end,
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.symmetric(horizontal: 4),
+                                            child: Text(
+                                              '${participant.usedTokens}/${participant.maxTokens}',
+                                              style: TextStyle(
+                                                color: theme.colorScheme.primary,
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.remove_circle_outline, size: 20),
+                                            color: theme.colorScheme.primary,
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: participant.usedTokens > 0
+                                                ? () => _updateParticipantTokens(
+                                                    participant,
+                                                    participant.usedTokens - 1)
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.add_circle_outline, size: 20),
+                                            color: theme.colorScheme.primary,
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: participant.usedTokens < participant.maxTokens
+                                                ? () => _updateParticipantTokens(
+                                                    participant,
+                                                    participant.usedTokens + 1)
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.delete_outline, size: 20),
+                                            color: Colors.red[400],
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: () => _removeParticipant(participant),
+                                          ),
+                                        ],
+                                      ),
+                                  ],
+                                ),
+                                if (isSmallScreen) ...[
+                                  SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        '${participant.usedTokens}/${participant.maxTokens}',
                                         style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 12,
+                                          color: theme.colorScheme.primary,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            // Tokens and Controls
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
-                                    child: Text(
-                                      '${participant.usedTokens}/${participant.maxTokens}',
-                                      style: TextStyle(
-                                        color: theme.colorScheme.primary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                      Row(
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(Icons.remove_circle_outline, size: 20),
+                                            color: theme.colorScheme.primary,
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: participant.usedTokens > 0
+                                                ? () => _updateParticipantTokens(
+                                                    participant,
+                                                    participant.usedTokens - 1)
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.add_circle_outline, size: 20),
+                                            color: theme.colorScheme.primary,
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: participant.usedTokens < participant.maxTokens
+                                                ? () => _updateParticipantTokens(
+                                                    participant,
+                                                    participant.usedTokens + 1)
+                                                : null,
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.delete_outline, size: 20),
+                                            color: Colors.red[400],
+                                            padding: EdgeInsets.all(4),
+                                            constraints: BoxConstraints(),
+                                            onPressed: () => _removeParticipant(participant),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.remove_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens > 0
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens - 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.add_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens < participant.maxTokens
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens + 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline, size: 20),
-                                    color: Colors.red[400],
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: () => _removeParticipant(participant),
+                                    ],
                                   ),
                                 ],
-                              ),
-                            ),
-                          ],
+                              ],
+                            );
+                          },
                         ),
                       ),
                     );

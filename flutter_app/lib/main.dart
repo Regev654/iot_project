@@ -4,50 +4,47 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'config.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    await dotenv.load(fileName: ".env");
-  } catch (e) {
-    print('Error: .env file not found. Please create a .env file with the required configuration.');
-    return;
-  }
-  
-  // Initialize Firebase with options
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Initialize Firebase with environment variables
-  final databaseUrl = dotenv.env['FIREBASE_DATABASE_URL'];
-  if (databaseUrl == null) {
-    print('Error: FIREBASE_DATABASE_URL not found in .env file');
-    return;
-  }
-  FirebaseDatabase.instance.databaseURL = databaseUrl;
-  
-  try {
-    final email = dotenv.env['ADMIN_EMAIL'];
-    final password = dotenv.env['ADMIN_PASSWORD'];
+    // Validate environment variables
+    Config.validateConfig();
     
-    if (email == null || password == null) {
-      print('Error: ADMIN_EMAIL or ADMIN_PASSWORD not found in .env file');
-      return;
+    // Initialize Firebase with options
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
     
+    // Initialize Firebase with environment variables
+    FirebaseDatabase.instance.databaseURL = Config.databaseUrl;
+    
+    // Sign in with admin credentials
     await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: email,
-      password: password,
+      email: Config.adminEmail,
+      password: Config.adminPassword,
     );
+    
+    runApp(EventManagerApp());
   } catch (e) {
-    print('Error signing in: $e');
-    return;
+    print('Initialization error: $e');
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Text(
+              'Error initializing app: $e\nPlease check your environment variables.',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ),
+      ),
+    );
   }
-  
-  runApp(EventManagerApp());
 }
 
 class EventManagerApp extends StatelessWidget {

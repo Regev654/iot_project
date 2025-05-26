@@ -284,7 +284,48 @@ class _EventListScreenState extends State<EventListScreen> {
                                       ),
                                   ],
                                 ),
-                                trailing: Icon(Icons.chevron_right),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () async {
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (context) => AlertDialog(
+                                            title: Text('Delete Event'),
+                                            content: Text('Are you sure you want to delete this event? This action cannot be undone.'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, false),
+                                                child: Text('Cancel'),
+                                              ),
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(context, true),
+                                                child: Text('Delete', style: TextStyle(color: Colors.red)),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        
+                                        if (confirmed == true) {
+                                          try {
+                                            await _dbRef.child('Events').child(event.eventId).remove();
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Event deleted successfully')),
+                                            );
+                                          } catch (e) {
+                                            print('Error deleting event: $e');
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text('Error deleting event')),
+                                            );
+                                          }
+                                        }
+                                      },
+                                    ),
+                                    Icon(Icons.chevron_right),
+                                  ],
+                                ),
                                 onTap: () async {
                                   final updatedEvent = await Navigator.push(
                                     context,
