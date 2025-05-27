@@ -38,10 +38,16 @@ public:
 
     void onTrigger()
     {
+        if(isRequestPending)
+        {
+            ledIndicator->displayLoadingUser();
+        }
+
         // Exits when no result available when calling from the loop.
         if (!lastResult || !lastResult->isResult())
+        {
             return;
-
+        }
 
         if (lastResult->isError())
         {
@@ -52,6 +58,7 @@ public:
         if (!lastResult->available()) {
             return;
         }
+        ledIndicator->clear();
 
         Serial.println("handle user result");
         Firebase.printf("task: %s, payload: ***%s****\n", lastResult->uid().c_str(), lastResult->c_str());

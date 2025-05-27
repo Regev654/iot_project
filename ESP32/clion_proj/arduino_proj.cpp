@@ -8,11 +8,11 @@
 
 
 
-FirebaseDB firebaseDB;
+LedIndicator ledIndicator;
+FirebaseDB firebaseDB(&ledIndicator);
 // !!!important!!!
 //need to init the LED after firebase to avoid error
 //e (5) rmt: rmt_new_tx_channel(269): not able to power down in light sleep neopixel
-LedIndicator ledIndicator;
 Printer printer;
 IdChecker idChecker(&printer, &ledIndicator, &firebaseDB);
 MagneticReader magneticReader(&idChecker);
@@ -22,17 +22,29 @@ void setup() {
     Serial.begin(115200);
     Serial.println("starting");
 
-    firebaseDB.setup();
     ledIndicator.setup();
+    firebaseDB.setup();
     printer.setup();
     magneticReader.setUp();
     barcodeScanner.setup();
 
-    firebaseDB.waitForConnection();
-    Serial.println("set");
+    Serial.println("Waiting for FirebaseDB connection");
 }
 
+bool lastReady = false;
 void loop() {
+    if(!firebaseDB.isReady())
+    {
+        ledIndicator.displayLoadingFirebase();
+        firebaseDB.onTrigger();
+        return;
+    }
+    else if(!lastReady)
+    {
+        ledIndicator.clear();
+        Serial.println("set");
+        lastReady = true;
+    }
     firebaseDB.onTrigger();
     magneticReader.onTrigger();
     barcodeScanner.onTrigger();

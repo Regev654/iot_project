@@ -14,18 +14,21 @@ class FirebaseDB
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEvent";
     static constexpr int WIFI_CONNECT_TIMEOUT = 1000;
 
+    LedIndicator* ledIndicator;
     SSL_CLIENT ssl_client;
     AsyncClientClass fb_client;
     UserAuth user_auth;
     FirebaseApp firebase_app;
     RealtimeDatabase database;
 
+
     std::string activeEvent;
     AsyncResult activeEventResult;
     bool isSetActiveEvent = false;
 public:
-    FirebaseDB()
-        : fb_client(ssl_client),
+    explicit FirebaseDB(LedIndicator* ledIndicator)
+        :ledIndicator(ledIndicator),
+        fb_client(ssl_client),
         user_auth(FIREBASE_API_KEY, FIREBASE_USER_EMAIL, FIREBASE_USER_PASSWORD)
 
     {
@@ -39,8 +42,10 @@ public:
         while (WiFi.status() != WL_CONNECTED)
         {
             delay(WIFI_CONNECT_TIMEOUT);
+            ledIndicator->displayLoadingWifi();
             Serial.print(".");
         }
+        ledIndicator->clear();
         Serial.println("");
         Serial.printf("Connected with IP: %s\n", WiFi.localIP().toString().c_str());
 
@@ -73,10 +78,11 @@ public:
         Serial.println("Waiting for FirebaseDB connection");
         while (!isReady())
         {
-            Serial.print(".");
+            ledIndicator->displayLoadingFirebase();
             onTrigger();
-            delay(500);
+            delay(100);
         }
+        ledIndicator->clear();
         Serial.println("Done waiting for FirebaseDB connection");
     }
 

@@ -17,6 +17,7 @@ public:
 };
 
 void delay(int){}
+unsigned long millis(){return 0;}
 
 #define SERIAL_8N1 (-1)
 

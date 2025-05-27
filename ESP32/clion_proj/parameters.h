@@ -1,5 +1,5 @@
 #define USE_PRINTER     1
-#define LED_PIN		    10
+#define LED_PIN		    11
 #define PIXELS_COUNT    3
 #define PRINTER_UART    1
 #define PRINTER_RX_PIN  16 //the rx pin of the printer (white wire)

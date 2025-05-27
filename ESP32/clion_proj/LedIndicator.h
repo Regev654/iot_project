@@ -25,6 +25,7 @@ class LedIndicator
         return intPercent;
     }
 
+
 public:
     explicit LedIndicator()
         : pixels(PIXELS_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800)
@@ -92,7 +93,6 @@ public:
         delay(DELAY);
     }
 
-
     void displayReachedMax()
     {
         Serial.println("Reached Max");
@@ -109,6 +109,50 @@ public:
         pixels.show();
     }
 
+    void displayLoadingWifi()
+    {
+        displayLoading(70, 70, 0, ".W");
+    }
+
+    void displayLoadingFirebase()
+    {
+        displayLoading(40, 100, 0, ".F");
+    }
+
+    void displayLoadingUser()
+    {
+        displayLoading(10, 100, 0, ".U");
+    }
+
+    void displayLoading(int red, int green, int blue, const char* message = ".")
+    {
+        static int state = 0;
+        static unsigned long lastTime = millis();
+        if(millis() - lastTime < 100) {
+            return;
+        }
+        lastTime = millis();
+        state = (state + 1) % PIXELS_COUNT;
+        Serial.print(message);
+        for (int j = 0; j < PIXELS_COUNT; j++) {
+            if(j==state)
+            {
+                pixels.setPixelColor(j, pixels.Color(red, green, blue));
+            }
+            else
+            {
+                pixels.setPixelColor(j, pixels.Color(123, 51, 0));
+            }
+        }
+        pixels.show();
+    }
+
+    void clear()
+    {
+        Serial.println("clear");
+        pixels.clear();
+        pixels.show();
+    }
 
 };
 
