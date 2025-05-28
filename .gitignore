@@ -11,3 +11,5 @@ ESP32/arduino_proj/MagneticReader.h
 ESP32/arduino_proj/parameters.h
 ESP32/arduino_proj/Printer.h
 ESP32/clion_proj/secrets.h
+
+iot_beer_token_new/

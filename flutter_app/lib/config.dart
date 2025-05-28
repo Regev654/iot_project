@@ -8,8 +8,6 @@ class Config {
   static String get authDomain => const String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
   static String get storageBucket => const String.fromEnvironment('FIREBASE_STORAGE_BUCKET');
   static String get databaseUrl => const String.fromEnvironment('FIREBASE_DATABASE_URL');
-  static String get adminEmail => const String.fromEnvironment('ADMIN_EMAIL');
-  static String get adminPassword => const String.fromEnvironment('ADMIN_PASSWORD');
 
   static void validateConfig() {
     if (kIsWeb) {
@@ -29,8 +27,6 @@ class Config {
     if (authDomain.isEmpty) missingVars.add('FIREBASE_AUTH_DOMAIN');
     if (storageBucket.isEmpty) missingVars.add('FIREBASE_STORAGE_BUCKET');
     if (databaseUrl.isEmpty) missingVars.add('FIREBASE_DATABASE_URL');
-    if (adminEmail.isEmpty) missingVars.add('ADMIN_EMAIL');
-    if (adminPassword.isEmpty) missingVars.add('ADMIN_PASSWORD');
 
     if (missingVars.isNotEmpty) {
       throw Exception(
@@ -50,8 +46,6 @@ class Config {
     if (authDomain.isEmpty) missingVars.add('FIREBASE_AUTH_DOMAIN');
     if (storageBucket.isEmpty) missingVars.add('FIREBASE_STORAGE_BUCKET');
     if (databaseUrl.isEmpty) missingVars.add('FIREBASE_DATABASE_URL');
-    if (adminEmail.isEmpty) missingVars.add('ADMIN_EMAIL');
-    if (adminPassword.isEmpty) missingVars.add('ADMIN_PASSWORD');
 
     if (missingVars.isNotEmpty) {
       throw Exception(

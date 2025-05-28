@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/event_list_screen.dart';
+import 'screens/login_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
 import 'config.dart';
 
 void main() async {
@@ -22,12 +21,6 @@ void main() async {
     
     // Initialize Firebase with environment variables
     FirebaseDatabase.instance.databaseURL = Config.databaseUrl;
-    
-    // Sign in with admin credentials
-    await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: Config.adminEmail,
-      password: Config.adminPassword,
-    );
     
     runApp(EventManagerApp());
   } catch (e) {
@@ -57,7 +50,7 @@ class EventManagerApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: EventListScreen(),
+      home: LoginScreen(),
     );
   }
 }
