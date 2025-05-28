@@ -103,6 +103,8 @@ public:
 
     const char* SSID() {return "";}
 
+    void setSleep(bool sleep) {}
+
 };
 
 class object_t{

@@ -38,6 +38,7 @@ public:
     {
         Serial.println("FirebaseDB setup");
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        WiFi.setSleep(false);
         Serial.print("Connecting to WiFi");
         while (WiFi.status() != WL_CONNECTED)
         {
