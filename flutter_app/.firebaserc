@@ -5,6 +5,9 @@
       "hosting": {
         "iot-beer-token": [
           "iot-beer-token"
+        ],
+        "iot-beer-token-v1": [
+          "iot-beer-token-v1"
         ]
       }
     }
