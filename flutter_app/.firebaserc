@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "iot-beer-token": {
+      "hosting": {
+        "iot-beer-token": [
+          "iot-beer-token"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
