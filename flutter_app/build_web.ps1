@@ -26,5 +26,26 @@ if (-not (Test-Path "build/web/main.dart.js")) {
     exit 1
 }
 
+# Create poc directory and move files
+$pocDir = "build/web/poc"
+New-Item -ItemType Directory -Force -Path $pocDir
+Get-ChildItem -Path "build/web" -Exclude "poc" | Move-Item -Destination $pocDir
+
+# Create index.html in root to redirect to poc
+$redirectHtml = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="0;url=/poc/">
+    <title>Redirecting...</title>
+</head>
+<body>
+    <p>Redirecting to <a href="/poc/">/poc/</a>...</p>
+</body>
+</html>
+"@
+Set-Content -Path "build/web/index.html" -Value $redirectHtml
+
 # Deploy to Firebase
 firebase deploy --only hosting:iot-beer-token 
