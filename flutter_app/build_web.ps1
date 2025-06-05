@@ -50,13 +50,24 @@ Remove-Item -Recurse -Force build/web -ErrorAction SilentlyContinue
 Write-Host "Building web app with environment variables:"
 $dartDefines | ForEach-Object { Write-Host $_ }
 
-# Build with all environment variables
+# Build with all environment variables and show detailed output
 Write-Host "Building web app..."
-flutter build web --release $dartDefines
+$buildOutput = flutter build web --release $dartDefines 2>&1
+$buildOutput | ForEach-Object { Write-Host $_ }
+
+# Check if build was successful
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Build failed with exit code $LASTEXITCODE"
+    Write-Error "Build output:"
+    $buildOutput | ForEach-Object { Write-Error $_ }
+    exit 1
+}
 
 # Verify the build
 if (-not (Test-Path "build/web/main.dart.js")) {
     Write-Error "Build failed: main.dart.js not found"
+    Write-Error "Build directory contents:"
+    Get-ChildItem -Path "build/web" -Recurse | ForEach-Object { Write-Error $_.FullName }
     exit 1
 }
 
