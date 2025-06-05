@@ -543,6 +543,64 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                   ),
                   SizedBox(width: 10),
                   ElevatedButton.icon(
+                    onPressed: () {
+                      final cardDataController = TextEditingController();
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: Text('Read Card'),
+                          content: TextField(
+                            controller: cardDataController,
+                            decoration: InputDecoration(
+                              labelText: 'Enter card data',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text('Cancel'),
+                            ),
+                            ElevatedButton(
+                              onPressed: () {
+                                final value = cardDataController.text;
+                                
+                                // Extract the ID using regex
+                                final regex = RegExp(r'@%\s*(\d+)\d+\?;\1\?\+');
+                                final match = regex.firstMatch(value);
+                                if (match != null && match.groupCount >= 1) {
+                                  final id = match.group(1)!;
+                                  searchController.text = id;
+                                  setState(() => search = id);
+                                  Navigator.pop(context);
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Invalid card format')),
+                                  );
+                                }
+                              },
+                              child: Text('Submit'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    icon: Icon(Icons.credit_card),
+                    label: Text('Read Card'),
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      backgroundColor: Colors.blue,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton.icon(
                     onPressed: _resetTokens,
                     icon: Icon(Icons.refresh),
                     label: Text('Reset'),
