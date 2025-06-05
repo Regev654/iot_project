@@ -21,11 +21,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
   Map<String, Group> _groups = {};
   bool _isLoading = true;
   String _error = '';
+  final Map<String, TextEditingController> _searchControllers = {};
+  final Map<String, bool> _showAllParticipants = {};
+  final Map<String, bool> _isLoadingParticipants = {};
 
   @override
   void initState() {
     super.initState();
-    _groupsRef = FirebaseDatabase.instance.ref().child('Events/${widget.event.eventId}/groups');
+    _groupsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/groups');
     _setupGroupsListener();
   }
 
@@ -39,7 +42,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
         
         data.forEach((key, value) {
           if (value != null) {
-            groups[key.toString()] = Group.fromJson(value as Map<dynamic, dynamic>);
+            final groupData = value as Map<dynamic, dynamic>;
+            groups[key.toString()] = Group(
+              groupId: key.toString(),
+              groupName: groupData['groupName'] ?? '',
+              amount: groupData['amount'] ?? 0,
+              participantIds: List<String>.from(groupData['participantIds'] ?? []),
+            );
           }
         });
 
@@ -65,6 +74,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
   @override
   void dispose() {
     _groupsSubscription.cancel();
+    for (final controller in _searchControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -232,7 +244,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         });
 
         // Add to event's Participants node
-        final participantsRef = FirebaseDatabase.instance.ref().child('Events/${widget.event.eventId}/Participants');
+        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
         // Calculate new maxTokens as sum of all group amounts for this participant
         int totalTokens = 0;
         for (final g in _groups.values) {
@@ -330,7 +342,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         });
 
         // Add to event's Participants node
-        final participantsRef = FirebaseDatabase.instance.ref().child('Events/${widget.event.eventId}/Participants');
+        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
         final batch = <String, Map<String, dynamic>>{};
         for (final participantId in participants) {
           if (participantId.isEmpty) {
@@ -413,11 +425,81 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Future<void> _deleteGroup(String groupId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Group'),
+        content: Text(
+          'Are you sure you want to delete the group "${_groups[groupId]?.groupName}"? This action cannot be undone.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
     try {
+      // Get the group before deleting it
+      final groupToDelete = _groups[groupId];
+      if (groupToDelete == null) {
+        throw Exception('Group not found');
+      }
+
+      // Get all participants in this group
+      final participantsToUpdate = groupToDelete.participantIds;
+
+      // Delete the group first
       await _groupsRef.child(groupId).remove();
+
+      // Update maxTokens for all participants in the deleted group
+      final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
+      final batch = <String, Map<String, dynamic>>{};
+
+      for (final participantId in participantsToUpdate) {
+        // Calculate new maxTokens by summing amounts from remaining groups
+        int totalTokens = 0;
+        for (final group in _groups.values) {
+          if (group.groupId != groupId && group.participantIds.contains(participantId)) {
+            totalTokens += group.amount;
+          }
+        }
+
+        // Get current participant data
+        final participantSnapshot = await participantsRef.child(participantId).get();
+        if (participantSnapshot.exists) {
+          final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+          final currentUsedTokens = participantData['usedTokens'] ?? 0;
+
+          // Update maxTokens and ensure usedTokens doesn't exceed new maxTokens
+          batch[participantId] = {
+            'maxTokens': totalTokens,
+            'usedTokens': currentUsedTokens > totalTokens ? totalTokens : currentUsedTokens,
+            'textToPrint': participantData['textToPrint'] ?? widget.event.textToPrint,
+          };
+        }
+      }
+
+      // Apply all updates in a single batch
+      if (batch.isNotEmpty) {
+        await participantsRef.update(batch);
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Group deleted')),
+          const SnackBar(content: Text('Group deleted and participant tokens updated')),
         );
       }
     } catch (e) {
@@ -427,6 +509,42 @@ class _GroupsScreenState extends State<GroupsScreen> {
         );
       }
     }
+  }
+
+  void _showParticipantDetails(String groupId, String participantId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Participant Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ID: $participantId'),
+            const SizedBox(height: 8),
+            Text('Group: ${_groups[groupId]?.groupName ?? "Unknown"}'),
+            const SizedBox(height: 8),
+            Text('Token Amount: ${_groups[groupId]?.amount ?? 0}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              _removeParticipant(groupId, participantId);
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -593,15 +711,68 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 16),
+                                  TextField(
+                                    controller: _searchControllers.putIfAbsent(
+                                      group.groupId,
+                                      () => TextEditingController(),
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: 'Search participants...',
+                                      prefixIcon: const Icon(Icons.search),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    onChanged: (value) {
+                                      setState(() {});
+                                    },
+                                  ),
+                                  const SizedBox(height: 16),
                                   Wrap(
                                     spacing: 8,
                                     runSpacing: 8,
                                     children: [
-                                      ...group.participantIds.map((participantId) => Chip(
-                                            label: Text(participantId),
-                                            deleteIcon: const Icon(Icons.close),
-                                            onDeleted: () => _removeParticipant(group.groupId, participantId),
-                                          )),
+                                      if (_isLoadingParticipants[group.groupId] == true)
+                                        const Padding(
+                                          padding: EdgeInsets.all(8.0),
+                                          child: SizedBox(
+                                            width: 20,
+                                            height: 20,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        ...group.participantIds
+                                            .where((id) {
+                                              final searchText = _searchControllers[group.groupId]?.text.toLowerCase() ?? '';
+                                              return searchText.isEmpty || id.toLowerCase().contains(searchText);
+                                            })
+                                            .take(_showAllParticipants[group.groupId] == true ? 999999 : 10)
+                                            .map((participantId) => FilterChip(
+                                                  label: Text(participantId),
+                                                  deleteIcon: const Icon(Icons.close),
+                                                  onDeleted: () => _removeParticipant(group.groupId, participantId),
+                                                  onSelected: (_) => _showParticipantDetails(group.groupId, participantId),
+                                                  selected: false,
+                                                )),
+                                      if (group.participantIds.length > 10 && !(_showAllParticipants[group.groupId] ?? false))
+                                        TextButton.icon(
+                                          onPressed: () async {
+                                            setState(() {
+                                              _isLoadingParticipants[group.groupId] = true;
+                                            });
+                                            // Simulate loading delay to prevent UI freeze
+                                            await Future.delayed(const Duration(milliseconds: 100));
+                                            setState(() {
+                                              _showAllParticipants[group.groupId] = true;
+                                              _isLoadingParticipants[group.groupId] = false;
+                                            });
+                                          },
+                                          icon: const Icon(Icons.expand_more),
+                                          label: const Text('Load All'),
+                                        ),
                                       ActionChip(
                                         avatar: const Icon(Icons.add),
                                         label: const Text('Add Participant'),

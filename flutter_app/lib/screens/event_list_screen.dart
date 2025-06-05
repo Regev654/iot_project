@@ -17,12 +17,14 @@ class _EventListScreenState extends State<EventListScreen> {
   List<Event> _events = [];
   bool _isLoading = true;
   String _error = '';
+  String? _liveEventId;
 
   @override
   void initState() {
     super.initState();
-    _eventsRef = FirebaseDatabase.instance.ref().child('Events');
+    _eventsRef = FirebaseDatabase.instance.ref().child('EventsV1');
     _setupEventsListener();
+    _setupLiveEventListener();
   }
 
   void _setupEventsListener() {
@@ -55,6 +57,20 @@ class _EventListScreenState extends State<EventListScreen> {
         _error = error.toString();
         _isLoading = false;
       });
+    });
+  }
+
+  void _setupLiveEventListener() {
+    FirebaseDatabase.instance.ref().child('LiveEventV1').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        setState(() {
+          _liveEventId = event.snapshot.value.toString();
+        });
+      } else {
+        setState(() {
+          _liveEventId = null;
+        });
+      }
     });
   }
 
@@ -280,31 +296,48 @@ class _EventListScreenState extends State<EventListScreen> {
                                         ),
                                         const SizedBox(width: 16),
                                         Expanded(
-                                          child: Text(
-                                            event.eventTitle,
-                                            style: theme.textTheme.titleLarge?.copyWith(
-                                              color: theme.colorScheme.primary,
-                                              fontWeight: FontWeight.bold,
-                                            ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                event.eventTitle,
+                                                style: theme.textTheme.titleLarge?.copyWith(
+                                                  color: theme.colorScheme.primary,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              if (event.eventId == _liveEventId)
+                                                Container(
+                                                  margin: const EdgeInsets.only(top: 4),
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.green.withOpacity(0.1),
+                                                    borderRadius: BorderRadius.circular(12),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.live_tv,
+                                                        size: 16,
+                                                        color: Colors.green,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        'Live Event',
+                                                        style: TextStyle(
+                                                          color: Colors.green,
+                                                          fontWeight: FontWeight.bold,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 20),
-                                    Row(
-                                      children: [
-                                        _buildStatChip(
-                                          theme,
-                                          Icons.group,
-                                          '${event.groups.length} Groups',
-                                          theme.colorScheme.secondary,
-                                        ),
-                                        const SizedBox(width: 12),
-                                        _buildStatChip(
-                                          theme,
-                                          Icons.people,
-                                          '${event.participants.length} Participants',
-                                          theme.colorScheme.tertiary,
                                         ),
                                       ],
                                     ),
@@ -322,39 +355,6 @@ class _EventListScreenState extends State<EventListScreen> {
         label: const Text('Add Event'),
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
-      ),
-    );
-  }
-
-  Widget _buildStatChip(
-    ThemeData theme,
-    IconData icon,
-    String label,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 16,
-            color: color,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

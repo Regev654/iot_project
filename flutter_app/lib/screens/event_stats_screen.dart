@@ -27,7 +27,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
 
   void _setupParticipantsListener() {
     final participantsRef = _dbRef
-        .child('Events')
+        .child('EventsV1')
         .child(widget.event.eventId)
         .child('Participants');
 
@@ -73,11 +73,10 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
     final participantsWithNoTokens = participants.where((p) => p.usedTokens == 0).length;
     final participantsWithAllTokens = participants.where((p) => p.usedTokens == p.maxTokens).length;
     
-    // Top participants
-    final topParticipants = List<Participant>.from(participants)
-      ..sort((a, b) => b.usedTokens.compareTo(a.usedTokens));
-    final top3Participants = topParticipants.take(3).toList();
-
+    // Active users statistics
+    final activeUsers = participants.where((p) => p.usedTokens > 0).length;
+    final activeUsersPercentage = totalParticipants > 0 ? (activeUsers / totalParticipants * 100) : 0;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text('Event Dashboard'),
@@ -178,7 +177,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Total Tokens',
+                              'Active Users',
                               style: TextStyle(
                                 color: Colors.grey[600],
                                 fontSize: 14,
@@ -186,7 +185,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                             ),
                             SizedBox(height: 8),
                             Text(
-                              totalTokens.toString(),
+                              '$activeUsers (${activeUsersPercentage.toStringAsFixed(1)}%)',
                               style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
@@ -365,59 +364,54 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       SizedBox(height: 16),
-                      ...top3Participants.map((p) => Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              p.id,
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Container(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                '${p.usedTokens} tokens',
-                                style: TextStyle(
-                                  color: theme.colorScheme.primary,
-                                  fontWeight: FontWeight.bold,
+                      ...participants
+                          .where((p) => p.usedTokens > 0)
+                          .toList()
+                          .reversed
+                          .take(10)
+                          .map((p) => Padding(
+                                padding: EdgeInsets.only(bottom: 8),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      p.id,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        '${p.usedTokens} tokens',
+                                        style: TextStyle(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
+                              )).toList(),
+                      if (participants.where((p) => p.usedTokens > 0).length > 10)
+                        Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Use search to find more participants',
+                            style: TextStyle(
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
                             ),
-                          ],
+                          ),
                         ),
-                      )).toList(),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'All Participants',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 16),
-                      ...participants.map((p) => _buildParticipantRow(p)),
                     ],
                   ),
                 ),
@@ -426,6 +420,27 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  int _findMostCommonUsage(List<Participant> participants) {
+    final usageCounts = <int, int>{};
+    for (final p in participants) {
+      usageCounts[p.usedTokens] = (usageCounts[p.usedTokens] ?? 0) + 1;
+    }
+    return usageCounts.entries
+        .reduce((a, b) => a.value > b.value ? a : b)
+        .key;
+  }
+
+  Map<int, int> _calculateUsageDistribution(List<Participant> participants) {
+    final distribution = <int, int>{};
+    for (final p in participants) {
+      distribution[p.usedTokens] = (distribution[p.usedTokens] ?? 0) + 1;
+    }
+    return Map.fromEntries(
+      distribution.entries.toList()
+        ..sort((a, b) => a.key.compareTo(b.key)),
     );
   }
 
@@ -468,45 +483,6 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildParticipantRow(Participant participant) {
-    final usagePercentage = participant.maxTokens > 0
-        ? (participant.usedTokens / participant.maxTokens * 100)
-        : 0;
-
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'ID: ${participant.id}',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                '${participant.usedTokens}/${participant.maxTokens}',
-                style: TextStyle(
-                  color: usagePercentage > 80 ? Colors.red : Colors.green,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: usagePercentage / 100,
-            backgroundColor: Colors.grey[200],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              usagePercentage > 80 ? Colors.red : Colors.green,
-            ),
-          ),
-        ],
       ),
     );
   }
