@@ -5,10 +5,11 @@
 #include "BarcodeScanner.h"
 #include "IdChecker.h"
 #include "FirebaseDB.h"
-
+#include "WifiConnection.h"
 
 
 LedIndicator ledIndicator;
+WifiConnection wifiConnection(&ledIndicator);
 FirebaseDB firebaseDB(&ledIndicator);
 // !!!important!!!
 //need to init the LED after firebase to avoid error
@@ -26,26 +27,26 @@ void setup() {
     printer.setup();
     magneticReader.setUp();
     barcodeScanner.setup();
+    wifiConnection.setup();
     firebaseDB.setup();
 
-    Serial.println("Waiting for FirebaseDB connection");
+    Serial.println("finished setups connection");
 }
 
 bool lastReady = false;
 void loop() {
-    if(!firebaseDB.isReady())
+
+    if(!wifiConnection.isReady())
     {
-        ledIndicator.displayLoadingFirebase();
-        firebaseDB.onTrigger();
+        firebaseDB.onWifiDisconnect();
         return;
     }
-    else if(!lastReady)
+
+    if(!firebaseDB.isReady())
     {
-        ledIndicator.clear();
-        Serial.println("set");
-        lastReady = true;
+        return;
     }
-    firebaseDB.onTrigger();
+
     magneticReader.onTrigger();
     barcodeScanner.onTrigger();
     idChecker.onTrigger();

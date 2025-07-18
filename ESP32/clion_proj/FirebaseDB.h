@@ -1,6 +1,9 @@
 #ifndef IOT_FIREBASEDB_H
 #define IOT_FIREBASEDB_H
 
+#define ENABLE_USER_AUTH
+#define ENABLE_DATABASE
+
 #include "stubs.h"
 #include "secrets.h"
 #include "FirebaseClient.h"
@@ -25,7 +28,9 @@ class FirebaseDB
     std::string activeEvent;
     AsyncResult activeEventResult;
     bool isSetActiveEvent = false;
+    bool hadSetup = false;
     unsigned long lastTimeTriggered = 0;
+    bool isLastReady = false;
 public:
     explicit FirebaseDB(LedIndicator* ledIndicator)
         :ledIndicator(ledIndicator),
@@ -38,65 +43,81 @@ public:
     void setup()
     {
         Serial.println("FirebaseDB setup");
-        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-        WiFi.setSleep(false);
-        Serial.print("Connecting to WiFi");
-        while (WiFi.status() != WL_CONNECTED)
-        {
-            delay(WIFI_CONNECT_TIMEOUT);
-            ledIndicator->displayLoadingWifi();
-            Serial.print(".");
-        }
-        ledIndicator->clear();
-        Serial.println("");
-        Serial.printf("Connected with IP: %s\n", WiFi.localIP().toString().c_str());
+        Serial.println("FirebaseDB setup done");
+    }
 
+    void connectSetup()
+    {
+        if(hadSetup) {
+            return;
+        }
+
+        Serial.println("FirebaseDB connection setup");
         set_ssl_client_insecure_and_buffer(ssl_client);
         initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "authTask");
         firebase_app.getApp<RealtimeDatabase>(database);
         database.url(FIREBASE_DATABASE_URL);
-        Serial.println("FirebaseDB setup done");
+        Serial.println("FirebaseDB connection done");
+        hadSetup = true;
     }
 
-    void onTrigger()
+    bool isReady()
+    {
+        connectSetup();
+        firebaseLoop();
+
+        if(!firebase_app.ready() )
+        {
+            ledIndicator->displayLoadingFirebase();
+            return false;
+        }
+
+        registerActiveEvent();
+        checkAsyncResult();
+
+        if(activeEvent.empty())
+        {
+            ledIndicator->displayLoadingFirebase();
+            return false;
+        }
+
+        notifyConnected();
+        return true;
+    }
+
+    void notifyConnected()
+    {
+        if(isLastReady)
+            return;
+
+        ledIndicator->clear();
+        Serial.println("Firebase connected");
+        isLastReady = true;
+    }
+
+    void onWifiDisconnect()
+    {
+        if(!isLastReady)
+            return;
+
+        Serial.println("firebase disconnected due to wifi disconnection");
+        isLastReady = false;
+    }
+
+    void firebaseLoop()
     {
         unsigned long before = millis();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.printf("bl %d\n", millis() - lastTimeTriggered);
+            Serial.printf("before firebase loop %d\n", millis() - lastTimeTriggered);
         }
         firebase_app.loop();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.println("al");
+            Serial.println("after firebase loop");
             if(millis() - before > 100) {
                 Serial.printf("Firebase loop took %lu ms\n", millis() - before);
             }
         }
         lastTimeTriggered = millis();
-
-        if(!firebase_app.ready())
-            return;
-
-
-        registerActiveEvent();
-        checkAsyncResult();
-    }
-
-    bool isReady()
-    {
-        return !activeEvent.empty();
-    }
-
-    void waitForConnection()
-    {
-        Serial.println("Waiting for FirebaseDB connection");
-        while (!isReady())
-        {
-            ledIndicator->displayLoadingFirebase();
-            onTrigger();
-            delay(100);
-        }
-        ledIndicator->clear();
-        Serial.println("Done waiting for FirebaseDB connection");
     }
 
     std::unique_ptr<AsyncResult> getUser(const std::string& id)
@@ -106,7 +127,7 @@ public:
         return databaseResult;
     }
 
-    std::unique_ptr<AsyncResult> setUser(const std::string& id, User user)
+    std::unique_ptr<AsyncResult> setUser(const std::string& id, const User& user)
     {
         auto databaseResult = std::make_unique<AsyncResult>();
         database.set(fb_client, getUserUrl(id).c_str(), user.toObject_t(), *databaseResult);
@@ -130,6 +151,7 @@ private:
             database.setSSEFilters("get,put,patch");
             database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
             isSetActiveEvent = true;
+            Serial.println("Registering active event finished");
         }
     }
 

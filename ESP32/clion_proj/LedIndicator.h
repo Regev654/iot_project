@@ -45,7 +45,7 @@ public:
 
     void displaySuccess()
     {
-        Serial.println("Success");
+        Serial.println("led display: Success");
         for (int i = 0; i < ROUNDS; i++) {
             for (int j = 0; j < PIXELS_COUNT; j++) {
                 pixels.setPixelColor(j, pixels.Color(0, 70, 0));
@@ -56,12 +56,13 @@ public:
             pixels.show();
             delay(DELAY);
         }
-        Serial.println("led finished");
+        Serial.println("led display: Success finished");
     }
 
     void displayError()
     {
-        Serial.println("Error");
+        Serial.println("led display: Error");
+
         for (int i = 0; i < ROUNDS; i++) {
             for (int j = 0; j < PIXELS_COUNT; j++) {
                 pixels.setPixelColor(j, pixels.Color(70, 0, 0));
@@ -72,11 +73,13 @@ public:
             pixels.show();
             delay(DELAY);
         }
+
+        Serial.println("led display: Error finished");
     }
 
     void displayUnauthorised()
     {
-        Serial.println("Unauthorised");
+        Serial.println("led display: Unauthorised");
         for (int i = 0; i < ROUNDS*2; i++) {
             int red = i % 2;
             int blue = 1 - red;
@@ -93,11 +96,12 @@ public:
         pixels.clear();
         pixels.show();
         delay(DELAY);
+        Serial.println("led display: Unauthorised finished");
     }
 
     void displayReachedMax()
     {
-        Serial.println("Reached Max");
+        Serial.println("led display: Reached Max");
         for (int i = 0; i < ROUNDS; i++) {
             int percent = getPercent(i);
             for (int j = 0; j < PIXELS_COUNT-percent; j++) {
@@ -109,6 +113,7 @@ public:
             pixels.clear();
         }
         pixels.show();
+        Serial.println("led display: Reached Max finished");
     }
 
     void displayLoadingWifi()
@@ -149,7 +154,7 @@ public:
 
     void clear()
     {
-        Serial.println("clear");
+        Serial.println("\nclear");
         pixels.clear();
         pixels.show();
     }

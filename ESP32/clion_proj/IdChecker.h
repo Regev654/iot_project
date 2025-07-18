@@ -37,7 +37,7 @@ public:
         lastRequest = millis();
         lastResult = firebaseDB->getUser(id);
         lastId = id;
-
+        Serial.printf("sent request for user %s info\n", id.c_str());
     }
 
     void onTrigger()
