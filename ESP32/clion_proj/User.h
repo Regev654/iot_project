@@ -49,7 +49,7 @@ public:
         used += usedTokens;
     }
 
-    object_t toObject_t() const
+    std::string toString() const
     {
         JsonDocument doc;
         doc["ID"] = id;
@@ -58,6 +58,12 @@ public:
         doc["usedTokens"] = used;
         std::string data;
         serializeJson(doc, data);
+        return data;
+    }
+
+    object_t toObject_t() const
+    {
+        std::string data = toString();
         return object_t(data.c_str());
     }
 };

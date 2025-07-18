@@ -9,10 +9,47 @@
 #include "FirebaseClient.h"
 #include "ExampleFunctions.h"
 #include "User.h"
+#include "IAsyncResult.h"
 #include <string>
 #include <memory>
 
-class FirebaseDB
+class IFirebaseDB
+{
+public:
+    virtual void setup() = 0;
+    virtual bool isReady() = 0;
+    virtual void onWifiDisconnect() = 0;
+    virtual std::unique_ptr<IAsyncResult> getUser(const std::string& id) = 0;
+    virtual std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) = 0;
+    virtual std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) = 0;
+};
+
+class FirebaseDBMock : public IFirebaseDB
+{
+public:
+    void setup() override{}
+
+    bool isReady() override{return true;}
+
+    void onWifiDisconnect() override{}
+
+    std::unique_ptr<IAsyncResult> getUser(const std::string& id) override
+    {
+        return std::make_unique<UserAsyncResultMock>(id);
+    }
+
+    std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) override
+    {
+        return std::make_unique<UserAsyncResultMock>(id);
+    }
+
+    std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) override
+    {
+        return std::make_unique<UserAsyncResultMock>(id);
+    }
+};
+
+class FirebaseDB : public IFirebaseDB
 {
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEvent";
     static constexpr int WIFI_CONNECT_TIMEOUT = 1000;
@@ -46,21 +83,6 @@ public:
         Serial.println("FirebaseDB setup done");
     }
 
-    void connectSetup()
-    {
-        if(hadSetup) {
-            return;
-        }
-
-        Serial.println("FirebaseDB connection setup");
-        set_ssl_client_insecure_and_buffer(ssl_client);
-        initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "authTask");
-        firebase_app.getApp<RealtimeDatabase>(database);
-        database.url(FIREBASE_DATABASE_URL);
-        Serial.println("FirebaseDB connection done");
-        hadSetup = true;
-    }
-
     bool isReady()
     {
         connectSetup();
@@ -85,6 +107,52 @@ public:
         return true;
     }
 
+    void onWifiDisconnect()
+    {
+        if(!isLastReady)
+            return;
+
+        Serial.println("firebase disconnected due to wifi disconnection");
+        isLastReady = false;
+    }
+
+    std::unique_ptr<IAsyncResult> getUser(const std::string& id)
+    {
+        auto databaseResult = std::make_unique<AsyncResultWrap>();
+        database.get(fb_client, getUserUrl(id).c_str(), databaseResult->getInternal(), false);
+        return databaseResult;
+    }
+
+    std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user)
+    {
+        auto databaseResult = std::make_unique<AsyncResultWrap>();
+        database.set(fb_client, getUserUrl(id).c_str(), user.toObject_t(), databaseResult->getInternal());
+        return databaseResult;
+    }
+
+    std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount)
+    {
+        auto databaseResult = std::make_unique<AsyncResultWrap>();
+        database.set<int>(fb_client, getTokensUrl(id).c_str(), amount ,databaseResult->getInternal());
+        return databaseResult;
+    }
+
+private:
+    void connectSetup()
+    {
+        if(hadSetup) {
+            return;
+        }
+
+        Serial.println("FirebaseDB connection setup");
+        set_ssl_client_insecure_and_buffer(ssl_client);
+        initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "authTask");
+        firebase_app.getApp<RealtimeDatabase>(database);
+        database.url(FIREBASE_DATABASE_URL);
+        Serial.println("FirebaseDB connection done");
+        hadSetup = true;
+    }
+
     void notifyConnected()
     {
         if(isLastReady)
@@ -93,15 +161,6 @@ public:
         ledIndicator->clear();
         Serial.println("Firebase connected");
         isLastReady = true;
-    }
-
-    void onWifiDisconnect()
-    {
-        if(!isLastReady)
-            return;
-
-        Serial.println("firebase disconnected due to wifi disconnection");
-        isLastReady = false;
     }
 
     void firebaseLoop()
@@ -120,30 +179,6 @@ public:
         lastTimeTriggered = millis();
     }
 
-    std::unique_ptr<AsyncResult> getUser(const std::string& id)
-    {
-        auto databaseResult = std::make_unique<AsyncResult>();
-        database.get(fb_client, getUserUrl(id).c_str(), *databaseResult, false);
-        return databaseResult;
-    }
-
-    std::unique_ptr<AsyncResult> setUser(const std::string& id, const User& user)
-    {
-        auto databaseResult = std::make_unique<AsyncResult>();
-        database.set(fb_client, getUserUrl(id).c_str(), user.toObject_t(), *databaseResult);
-        return databaseResult;
-    }
-
-    std::unique_ptr<AsyncResult> updateUsedTokens(const std::string& id, int amount)
-    {
-        auto databaseResult = std::make_unique<AsyncResult>();
-        database.set<int>(fb_client, getTokensUrl(id).c_str(), amount ,*databaseResult);
-        return databaseResult;
-    }
-
-
-
-private:
     void registerActiveEvent()
     {
         if(!isSetActiveEvent) {

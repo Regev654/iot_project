@@ -25,6 +25,7 @@ class String
 {
 public:
     const char* c_str(){return "";}
+    String(const char *cstr = "") {}
 };
 
 class HardwareSerial

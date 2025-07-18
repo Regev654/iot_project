@@ -11,6 +11,7 @@
 LedIndicator ledIndicator;
 WifiConnection wifiConnection(&ledIndicator);
 FirebaseDB firebaseDB(&ledIndicator);
+//FirebaseDBMock firebaseDB;
 // !!!important!!!
 //need to init the LED after firebase to avoid error
 //e (5) rmt: rmt_new_tx_channel(269): not able to power down in light sleep neopixel

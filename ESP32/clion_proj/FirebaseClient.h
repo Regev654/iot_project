@@ -50,11 +50,11 @@ public:
 class AsyncResult{
 public:
     bool isResult(){return true;}
-    bool isError(){return false;}
+    bool isError() {return false;}
     bool available(){return true;}
-    size_t length(){return 0;}
-    FirebaseError error(){return {};}
-    String uid(){return {};}
+    size_t length()const{return 0;}
+    FirebaseError error()const{return {};}
+    String uid()const{return {};}
     const char* c_str(){return "";}
 
     template<class T>

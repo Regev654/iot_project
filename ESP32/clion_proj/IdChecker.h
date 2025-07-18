@@ -12,15 +12,15 @@ class IdChecker : public IdListener
 {
     Printer* printer;
     LedIndicator* ledIndicator;
-    FirebaseDB* firebaseDB;
-    std::unique_ptr<AsyncResult> lastResult;
-    string lastId;
+    IFirebaseDB* firebaseDB;
+    std::unique_ptr<IAsyncResult> lastResult;
+    std::string lastId;
     bool isRequestPending = false;
     unsigned long lastRequest = 0;
     static constexpr int REQUEST_TIMEOUT = 30000;
     int defaultAmount = 0;
 public:
-    IdChecker(Printer* printer, LedIndicator* ledIndicator, FirebaseDB* firebaseDB)
+    IdChecker(Printer* printer, LedIndicator* ledIndicator, IFirebaseDB* firebaseDB)
         : printer(printer), ledIndicator(ledIndicator), firebaseDB(firebaseDB)
     {
     }
