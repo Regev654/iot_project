@@ -16,6 +16,8 @@ class IdChecker : public IdListener
     std::unique_ptr<AsyncResult> lastResult;
     string lastId;
     bool isRequestPending = false;
+    unsigned long lastRequest = 0;
+    static constexpr int REQUEST_TIMEOUT = 30000;
     int defaultAmount = 0;
 public:
     IdChecker(Printer* printer, LedIndicator* ledIndicator, FirebaseDB* firebaseDB)
@@ -30,7 +32,9 @@ public:
             Serial.println("Previous ID processing is still pending, ignoring new ID");
             return;
         }
+        Serial.printf("got ID %s \n", id.c_str());
         isRequestPending = true;
+        lastRequest = millis();
         lastResult = firebaseDB->getUser(id);
         lastId = id;
 
@@ -40,6 +44,13 @@ public:
     {
         if(isRequestPending)
         {
+            if(millis() - lastRequest > REQUEST_TIMEOUT)
+            {
+                Serial.println("Request timeout, resetting");
+                isRequestPending = false;
+                ledIndicator->displayError();
+                return;
+            }
             ledIndicator->displayLoadingUser();
         }
 
@@ -52,7 +63,9 @@ public:
         if (lastResult->isError())
         {
             Serial.println("handle user result error");
-
+            isRequestPending = false;
+            ledIndicator->displayError();
+            return;
         }
 
         if (!lastResult->available()) {
@@ -61,13 +74,13 @@ public:
         ledIndicator->clear();
 
         Serial.println("handle user result");
-        Firebase.printf("task: %s, payload: ***%s****\n", lastResult->uid().c_str(), lastResult->c_str());
+        Firebase.printf("handle user result, task: %s, payload: ***%s****\n", lastResult->uid().c_str(), lastResult->c_str());
         bool isAuthorised = std::string("null") != lastResult->c_str();
 
         if(!isAuthorised && defaultAmount <= 0)
         {
             ledIndicator->displayUnauthorised();
-            Firebase.printf("Error task: %s, msg: %s, code: %d\n", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
+            Firebase.printf("handle user result, Error task: %s, msg: %s, code: %d\n", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
             isRequestPending = false;
             return;
         }
@@ -106,18 +119,17 @@ private:
     int getLeftAmount(const User& user)
     {
         int left = user.getMax() - user.getUsed();
-        if(left>10)
+        if(left>10) {
+            Serial.printf("User has %d tokens left, setting 1\n", left);
             left = 1;
+        }
 
         return left;
     }
 
     void printAmount(const User& user, int amount)
     {
-        for(int i = 0; i < amount; i++)
-        {
-            printer->println(user.getText().c_str());
-        }
+        printer->println(user.getText().c_str(), amount);
         ledIndicator->displaySuccess();
     }
 };

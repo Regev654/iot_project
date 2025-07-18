@@ -25,6 +25,7 @@ class FirebaseDB
     std::string activeEvent;
     AsyncResult activeEventResult;
     bool isSetActiveEvent = false;
+    unsigned long lastTimeTriggered = 0;
 public:
     explicit FirebaseDB(LedIndicator* ledIndicator)
         :ledIndicator(ledIndicator),
@@ -54,13 +55,24 @@ public:
         initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "authTask");
         firebase_app.getApp<RealtimeDatabase>(database);
         database.url(FIREBASE_DATABASE_URL);
-
         Serial.println("FirebaseDB setup done");
     }
 
     void onTrigger()
     {
+        unsigned long before = millis();
+        if(millis() - lastTimeTriggered > 100) {
+            Serial.printf("bl %d\n", millis() - lastTimeTriggered);
+        }
         firebase_app.loop();
+        if(millis() - lastTimeTriggered > 100) {
+            Serial.println("al");
+            if(millis() - before > 100) {
+                Serial.printf("Firebase loop took %lu ms\n", millis() - before);
+            }
+        }
+        lastTimeTriggered = millis();
+
         if(!firebase_app.ready())
             return;
 
@@ -128,17 +140,17 @@ private:
 
         if(activeEventResult.isError())
         {
-            Serial.printf("Error task: %s, msg: %s, code: %d\n", activeEventResult.uid().c_str(), activeEventResult.error().message().c_str(), activeEventResult.error().code());
+            Serial.printf("active event, Error task: %s, msg: %s, code: %d\n", activeEventResult.uid().c_str(), activeEventResult.error().message().c_str(), activeEventResult.error().code());
             return;
         }
 
         if (!activeEventResult.available())
             return;
-        Firebase.printf("task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
+        Firebase.printf("active event, task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
         auto& stream = activeEventResult.to<RealtimeDatabaseResult>();
         if(std::string("keep-alive") == stream.event().c_str())
         {
-            Serial.println("Keep-alive event received, skipping update");
+            Serial.println("active event Keep-alive event received, skipping update");
             return;
         }
         activeEvent = stream.to<const char *>();
@@ -163,5 +175,7 @@ private:
 
 
 };
+
+
 
 #endif //IOT_FIREBASEDB_H

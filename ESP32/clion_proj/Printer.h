@@ -3,9 +3,31 @@
 #include "stubs.h"
 #include "parameters.h"
 
+class DummySerial
+{
+public:
+    DummySerial(int uart) {}
+
+    void begin(int baud, int config, int rxPin, int txPin)
+    {
+        Serial.printf("DummySerial started with baud %d on pins RX: %d, TX: %d\n", baud, rxPin, txPin);
+    }
+
+    void println(const char* str)
+    {
+        Serial.println(str);
+    }
+
+    void write(const uint8_t* data, size_t size)
+    {
+        Serial.printf("called write with data: %zu bytes\n", size);
+    }
+};
+
 class Printer
 {
     HardwareSerial serial;
+    //DummySerial serial;
 public:
     Printer(): serial(PRINTER_UART)
     {};
@@ -17,27 +39,30 @@ public:
         Serial.println("Printer setup finished");
     }
 
-    void println(const char* str)
+    void println(const char* str, int amount)
     {
-        Serial.println("Printing to printer");
-        Serial.println(str);
+        Serial.printf("Printing to printer %d times\n", amount);
+
         if(!USE_PRINTER)
         {
             Serial.println("Printer is disabled, printing to serial only");
             return;
         }
-
         setAlignCenter();
         setBigTest();
         setUpsideDownDirection();
 
-        serial.println("");
-        serial.println("");
-        serial.println("----------------");
-        serial.println(str);
-        serial.println("----------------");
-        serial.println("");
-        serial.println("");
+
+        std:string msg = "\n\n----------------\n";
+        for(int i = 0; i < amount; i++)
+        {
+            msg += str;
+            msg += "\n";
+            msg += "----------------\n";
+        }
+        msg += "\n\n";
+        serial.println(msg.c_str());
+        Serial.println(msg.c_str());
     }
 
 

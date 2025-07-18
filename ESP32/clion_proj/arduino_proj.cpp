@@ -23,10 +23,10 @@ void setup() {
     Serial.println("starting");
 
     ledIndicator.setup();
-    firebaseDB.setup();
     printer.setup();
     magneticReader.setUp();
     barcodeScanner.setup();
+    firebaseDB.setup();
 
     Serial.println("Waiting for FirebaseDB connection");
 }

@@ -40,6 +40,6 @@ public:
 
 SerialObj Serial;
 
-
+void xTaskCreate(void(void*),const char*, int, void*, int, void**){};
 
 #endif //TEMP_STUBS_H

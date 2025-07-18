@@ -12,6 +12,8 @@ class LedIndicator
     static constexpr int ROUNDS = 3;
     static constexpr int DELAY = 300;
     Adafruit_NeoPixel pixels;
+    int loadingState = 0;
+    unsigned long loadingLastTime = 0;
 
     int getPercent(int index) const
     {
@@ -126,16 +128,14 @@ public:
 
     void displayLoading(int red, int green, int blue, const char* message = ".")
     {
-        static int state = 0;
-        static unsigned long lastTime = millis();
-        if(millis() - lastTime < 100) {
+        if(millis() - loadingLastTime < 100) {
             return;
         }
-        lastTime = millis();
-        state = (state + 1) % PIXELS_COUNT;
+        loadingLastTime = millis();
+        loadingState = (loadingState + 1) % PIXELS_COUNT;
         Serial.print(message);
         for (int j = 0; j < PIXELS_COUNT; j++) {
-            if(j==state)
+            if(j == loadingState)
             {
                 pixels.setPixelColor(j, pixels.Color(red, green, blue));
             }
