@@ -20,6 +20,13 @@ auto idChecker = make_unique<IdChecker>(printer.get(), ledIndicator.get(), fireb
 auto magneticReader = make_unique<MagneticReader>(idChecker.get());
 auto barcodeScanner = make_unique<BarcodeScanner>(idChecker.get());
 
+void ledLoop(void* arg) {
+    while (true) {
+        ledIndicator->onTrigger();
+        delay(11);
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     Serial.println("starting");
@@ -31,7 +38,8 @@ void setup() {
     wifiConnection->setup();
     firebaseDB->setup();
 
-    Serial.println("finished setups connection");
+    xTaskCreate(ledLoop, "ledLoop", 2048, nullptr, 3, nullptr);
+    Serial.print("finished setups connection");
 }
 
 unsigned int lastTime = 0;
@@ -42,8 +50,8 @@ void monitorMemory()
     if(millis() - lastTime < timeInterval) {
         return;
     }
-    Serial.printf("\nFree heap: %u\n", ESP.getFreeHeap());
-    Serial.printf("Free stack: %u\n", uxTaskGetStackHighWaterMark(NULL));
+    Serial.printf("\nFree heap: %u ", ESP.getFreeHeap());
+    Serial.printf("\nFree stack: %u ", uxTaskGetStackHighWaterMark(nullptr));
     lastTime = millis();
     if(timeInterval < 60*1000)
     {
@@ -54,7 +62,6 @@ void monitorMemory()
 
 void loop() {
     monitorMemory();
-    ledIndicator->onTrigger();
 
     if(!wifiConnection->isReady())
     {

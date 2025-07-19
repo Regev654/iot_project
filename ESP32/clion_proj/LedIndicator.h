@@ -32,7 +32,7 @@ class LedIndicator
         int intPercent = static_cast<int>(std::round(percent));
         if (intPercent < 0 || PIXELS_COUNT < intPercent) {
             intPercent = PIXELS_COUNT;
-            Serial.printf("Error: intPercent out of bounds %d", intPercent);
+            Serial.printf("\nError: intPercent out of bounds %d", intPercent);
         }
         return intPercent;
     }
@@ -53,9 +53,9 @@ class LedIndicator
         pixels.show();
     }
 
-    void displayLoading(int red, int green, int blue, const char* message = ".")
+    void displayLoading(int red, int green, int blue, const char* message = ".", int interval = 400)
     {
-        if (millis() - loadingLastTime < 400) {
+        if (millis() - loadingLastTime < interval) {
             return;
         }
         loadingLastTime = millis();
@@ -89,7 +89,7 @@ public:
 
     void displaySuccess()
     {
-        Serial.println("led display: Success");
+        Serial.print("\nled display: Success ");
         ledState = State::RESULT;
         loadingLastTime = millis();
         for (int i = 0; i < ROUNDS; i++) {
@@ -102,13 +102,13 @@ public:
             pixels.show();
             delay(DELAY);
         }
-        Serial.println("led display: Success finished");
+        Serial.print("\nled display: Success finished ");
         ledState = State::IDLE;
     }
 
     void displayError()
     {
-        Serial.println("led display: Error");
+        Serial.print("\nled display: Error ");
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS; i++) {
@@ -122,13 +122,13 @@ public:
             delay(DELAY);
         }
 
-        Serial.println("led display: Error finished");
+        Serial.print("\nled display: Error finished ");
         ledState = State::IDLE;
     }
 
     void displayUnauthorised()
     {
-        Serial.println("led display: Unauthorised");
+        Serial.print("\nled display: Unauthorised ");
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS * 2; i++) {
@@ -147,13 +147,13 @@ public:
         pixels.clear();
         pixels.show();
 
-        Serial.println("led display: Unauthorised finished");
+        Serial.print("\nled display: Unauthorised finished ");
         ledState = State::IDLE;
     }
 
     void displayReachedMax()
     {
-        Serial.println("led display: Reached Max");
+        Serial.print("\nled display: Reached Max ");
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS; i++) {
@@ -168,7 +168,7 @@ public:
         }
         pixels.show();
 
-        Serial.println("led display: Reached Max finished");
+        Serial.print("\nled display: Reached Max finished ");
         ledState = State::IDLE;
     }
 
@@ -196,13 +196,13 @@ public:
     {
         switch (ledState) {
             case State::WIFI_LOADING:
-                displayLoading(70, 70, 0, ".W");
+                displayLoading(100, 100, 0, ".W", 400); //yellow
                 break;
             case State::FIREBASE_LOADING:
-                displayLoading(40, 100, 0, ".F");
+                displayLoading(120, 10, 0, ".F", 700); //close to red
                 break;
             case State::USER_LOADING:
-                displayLoading(10, 100, 0, ".U");
+                displayLoading(10, 100, 0, ".U", 400); //close to green
                 break;
             case State::IDLE:
                 displayIdle();
@@ -210,7 +210,7 @@ public:
             case State::RESULT:
                 break;
             default:
-                Serial.println("led display: unknown state");
+                Serial.print("\nled display: unknown state ");
                 break;
         }
     }

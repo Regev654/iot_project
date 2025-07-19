@@ -37,11 +37,11 @@ public:
             if(!ignoredFirstError)
             {
                 ignoredFirstError = true;
-                Serial.printf("barcode scanner: ignoring first error. len: %d, data: %s\n", id.length(), id.c_str());
+                Serial.printf("\nbarcode scanner: ignoring first error. len: %d, data: %s ", id.length(), id.c_str());
                 return;
             }
 
-            Serial.printf("barcode scanner: Invalid ID length. len:, data %s\n", id.length(), id.c_str());
+            Serial.printf("\nbarcode scanner: Invalid ID length. len:, data %s ", id.length(), id.c_str());
             idListener->onInputError();
             return;
         }

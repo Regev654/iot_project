@@ -77,7 +77,7 @@ public:
         if(!isLastReady)
             return;
 
-        Serial.println("firebase disconnected due to wifi disconnection");
+        Serial.print("\nfirebase disconnected due to wifi disconnection ");
         isLastReady = false;
     }
 
@@ -109,12 +109,13 @@ private:
             return;
         }
 
-        Serial.println("FirebaseDB connection setup");
+        Serial.print("\nFirebaseDB connection setup ");
+        ledIndicator->displayLoadingFirebase();
         set_ssl_client_insecure_and_buffer(ssl_client);
-        initializeApp(fb_client, firebase_app, getAuth(user_auth), 120*1000,auth_debug_print);
+        initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "auth");
         firebase_app.getApp<RealtimeDatabase>(database);
         database.url(FIREBASE_DATABASE_URL);
-        Serial.println("FirebaseDB connection done");
+        Serial.print("\nFirebaseDB connection setup done ");
         hadSetup = true;
     }
 
@@ -124,7 +125,7 @@ private:
             return;
 
         ledIndicator->clear();
-        Serial.println("Firebase connected");
+        Serial.print("\nFirebase connected ");
         isLastReady = true;
     }
 
@@ -132,13 +133,13 @@ private:
     {
         unsigned long before = millis();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.printf("\nbefore firebase loop %d\n", millis() - lastTimeTriggered);
+            Serial.printf("\nbefore firebase loop %d ", millis() - lastTimeTriggered);
         }
         firebase_app.loop();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.println("\nafter firebase loop");
+            Serial.print("\nafter firebase loop ");
             if(millis() - before > 100) {
-                Serial.printf("Firebase loop took %lu ms\n", millis() - before);
+                Serial.printf("\nFirebase loop took %lu ms ", millis() - before);
             }
         }
         lastTimeTriggered = millis();
@@ -147,11 +148,11 @@ private:
     void registerActiveEvent()
     {
         if(!isSetActiveEvent) {
-            Serial.println("Registering active event");
+            Serial.print("\nRegistering active event ");
             database.setSSEFilters("get,put,patch");
             database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
             isSetActiveEvent = true;
-            Serial.println("Registering active event finished");
+            Serial.print("\nRegistering active event finished ");
         }
     }
 
@@ -162,26 +163,26 @@ private:
 
         if(activeEventResult.isError())
         {
-            Serial.printf("active event, Error task: %s, msg: %s, code: %d\n", activeEventResult.uid().c_str(), activeEventResult.error().message().c_str(), activeEventResult.error().code());
+            Serial.printf("\nactive event, Error task: %s, msg: %s, code: %d ", activeEventResult.uid().c_str(), activeEventResult.error().message().c_str(), activeEventResult.error().code());
             return;
         }
 
         if (!activeEventResult.available())
             return;
-        Firebase.printf("\nactive event, task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
+        Firebase.printf("\nactive event, task: %s, payload: ***%s**** ", activeEventResult.uid().c_str(), activeEventResult.c_str());
         auto& stream = activeEventResult.to<RealtimeDatabaseResult>();
         if(std::string("keep-alive") == stream.event().c_str())
         {
-            Serial.println("active event Keep-alive event received, skipping update");
+            Serial.print("\nactive event Keep-alive event received, skipping update ");
             return;
         }
         activeEvent = stream.to<const char *>();
         if(activeEvent.empty())
         {
-            Serial.println("Active event is empty, skipping update");
+            Serial.print("\nActive event is empty, skipping update ");
             return;
         }
-        Serial.printf("Active event updated: %s\n", activeEvent.c_str());
+        Serial.printf("\nActive event updated: %s ", activeEvent.c_str());
     }
 
     std::string getUserUrl(const std::string& id) const

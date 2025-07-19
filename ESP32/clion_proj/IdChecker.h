@@ -29,16 +29,16 @@ public:
     {
         if(isRequestPending)
         {
-            Serial.println("Previous ID processing is still pending, ignoring new ID");
+            Serial.print("\nPrevious ID processing is still pending, ignoring new ID ");
             return;
         }
-        Serial.printf("got ID %s \n", id.c_str());
+        Serial.printf("\ngot ID %s ", id.c_str());
         isRequestPending = true;
         ledIndicator->displayLoadingUser();
         lastRequest = millis();
         lastResult = firebaseDB->getUser(id);
         lastId = id;
-        Serial.printf("sent request for user %s info\n", id.c_str());
+        Serial.printf("\nsent request for user %s info ", id.c_str());
     }
 
     void onTrigger()
@@ -47,7 +47,7 @@ public:
         {
             if(millis() - lastRequest > REQUEST_TIMEOUT)
             {
-                Serial.println("Request timeout, resetting");
+                Serial.print("\nRequest timeout, resetting ");
                 isRequestPending = false;
                 ledIndicator->clear();
                 ledIndicator->displayError();
@@ -64,7 +64,7 @@ public:
 
         if (lastResult->isError())
         {
-            Serial.println("handle user result error");
+            Serial.print("\nhandle user result error ");
             isRequestPending = false;
             ledIndicator->clear();
             ledIndicator->displayError();
@@ -76,15 +76,14 @@ public:
         }
         ledIndicator->clear();
 
-        Serial.println("handle user result");
-        Firebase.printf("handle user result, task: %s, payload: ***%s****\n", lastResult->uid().c_str(), lastResult->c_str());
+        Firebase.printf("\nhandle user result, task: %s, payload: ***%s**** ", lastResult->uid().c_str(), lastResult->c_str());
         bool isAuthorised = std::string("null") != lastResult->c_str();
 
         if(!isAuthorised && defaultAmount <= 0)
         {
             ledIndicator->clear();
             ledIndicator->displayUnauthorised();
-            Firebase.printf("handle user result, Error task: %s, msg: %s, code: %d\n", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
+            Firebase.printf("\nhandle user result, Error task: %s, msg: %s, code: %d ", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
             isRequestPending = false;
             return;
         }
@@ -107,7 +106,7 @@ public:
             ledIndicator->clear();
             ledIndicator->displayReachedMax();
 
-            Firebase.printf("No more tokens left for user %s\n", lastId.c_str());
+            Firebase.printf("\nhandle user result, No more tokens left for user %s ", lastId.c_str());
             isRequestPending = false;
             return;
         }
@@ -126,7 +125,7 @@ private:
     {
         int left = user.getMax() - user.getUsed();
         if(left>10) {
-            Serial.printf("User has %d tokens left, setting 1\n", left);
+            Serial.printf("\nUser has %d tokens left, setting 1 ", left);
             left = 1;
         }
 

@@ -48,7 +48,7 @@ public:
     {
         if(currentId.size() < PREFIX_LENGTH + ID_LENGTH || currentId[0] != '@' || currentId[1] != '%')
         {
-            Serial.printf("magnetic reader: Invalid ID format, len:%d, data %s\n", currentId.length(), currentId.c_str());
+            Serial.printf("\nmagnetic reader: Invalid ID format, len:%d, data %s ", currentId.length(), currentId.c_str());
             idListener->onInputError();
             return;
         }
