@@ -50,8 +50,8 @@ void monitorMemory()
     if(millis() - lastTime < timeInterval) {
         return;
     }
-    Serial.printf("\nFree heap: %u ", ESP.getFreeHeap());
-    Serial.printf("\nFree stack: %u ", uxTaskGetStackHighWaterMark(nullptr));
+    Serial.printf("\nFree heap: %u. ", ESP.getFreeHeap());
+    Serial.printf("\nFree stack: %u. ", uxTaskGetStackHighWaterMark(nullptr));
     lastTime = millis();
     if(timeInterval < 60*1000)
     {

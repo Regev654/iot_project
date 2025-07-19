@@ -10,7 +10,7 @@ public:
 
     void begin(int baud, int config, int rxPin, int txPin)
     {
-        Serial.printf("\nDummySerial started with baud %d on pins RX: %d, TX: %d ", baud, rxPin, txPin);
+        Serial.printf("\nDummySerial started with baud %d on pins RX: %d, TX: %d. ", baud, rxPin, txPin);
     }
 
     void println(const char* str)
@@ -20,7 +20,7 @@ public:
 
     void write(const uint8_t* data, size_t size)
     {
-        Serial.printf("\ncalled write with data: %zu bytes ", size);
+        Serial.printf("\ncalled write with data: %zu bytes. ", size);
     }
 };
 
@@ -41,11 +41,11 @@ public:
 
     void println(const char* str, int amount)
     {
-        Serial.printf("\nPrinting to printer %d times ", amount);
+        Serial.printf("\nPrinting to printer %d times. ", amount);
 
         if(!USE_PRINTER)
         {
-            Serial.print("\nPrinter is disabled, printing to serial only ");
+            Serial.print("\nPrinter is disabled, printing to serial only. ";
             return;
         }
         setAlignCenter();

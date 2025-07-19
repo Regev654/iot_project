@@ -89,7 +89,7 @@ public:
 
     void displaySuccess()
     {
-        Serial.print("\nled display: Success ");
+        Serial.print("\nled display: Success. ";
         ledState = State::RESULT;
         loadingLastTime = millis();
         for (int i = 0; i < ROUNDS; i++) {
@@ -102,13 +102,13 @@ public:
             pixels.show();
             delay(DELAY);
         }
-        Serial.print("\nled display: Success finished ");
+        Serial.print("\nled display: Success finished. ";
         ledState = State::IDLE;
     }
 
     void displayError()
     {
-        Serial.print("\nled display: Error ");
+        Serial.print("\nled display: Error. ";
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS; i++) {
@@ -122,13 +122,13 @@ public:
             delay(DELAY);
         }
 
-        Serial.print("\nled display: Error finished ");
+        Serial.print("\nled display: Error finished. ";
         ledState = State::IDLE;
     }
 
     void displayUnauthorised()
     {
-        Serial.print("\nled display: Unauthorised ");
+        Serial.print("\nled display: Unauthorised. ";
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS * 2; i++) {
@@ -147,13 +147,13 @@ public:
         pixels.clear();
         pixels.show();
 
-        Serial.print("\nled display: Unauthorised finished ");
+        Serial.print("\nled display: Unauthorised finished. ";
         ledState = State::IDLE;
     }
 
     void displayReachedMax()
     {
-        Serial.print("\nled display: Reached Max ");
+        Serial.print("\nled display: Reached Max. ";
         ledState = State::RESULT;
 
         for (int i = 0; i < ROUNDS; i++) {
@@ -168,7 +168,7 @@ public:
         }
         pixels.show();
 
-        Serial.print("\nled display: Reached Max finished ");
+        Serial.print("\nled display: Reached Max finished. ";
         ledState = State::IDLE;
     }
 
@@ -210,7 +210,7 @@ public:
             case State::RESULT:
                 break;
             default:
-                Serial.print("\nled display: unknown state ");
+                Serial.print("\nled display: unknown state. ";
                 break;
         }
     }

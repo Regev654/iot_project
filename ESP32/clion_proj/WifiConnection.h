@@ -35,7 +35,7 @@ public:
         {
             if(isLastConnected)
             {
-                Serial.print("\nConnecting to WiFi ");
+                Serial.print("\nConnecting to WiFi. ";
                 isLastConnected = false;
             }
             ledIndicator->displayLoadingWifi();
@@ -49,7 +49,7 @@ public:
 
         isLastConnected = true;
         ledIndicator->clear();
-        Serial.printf("\nConnected with IP: %s ", WiFi.localIP().toString().c_str());
+        Serial.printf("\nConnected with IP: %s. ", WiFi.localIP().toString().c_str());
         return true;
     }
 
