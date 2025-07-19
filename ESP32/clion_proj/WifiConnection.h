@@ -41,7 +41,8 @@ public:
             ledIndicator->displayLoadingWifi();
             return false;
         }
-        else if (isLastConnected)
+
+        if (isLastConnected)
         {
             return true;
         }

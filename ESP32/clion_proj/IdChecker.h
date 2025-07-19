@@ -17,7 +17,7 @@ class IdChecker : public IdListener
     std::string lastId;
     bool isRequestPending = false;
     unsigned long lastRequest = 0;
-    static constexpr int REQUEST_TIMEOUT = 30000;
+    static constexpr int REQUEST_TIMEOUT = 60*1000;
     int defaultAmount = 0;
 public:
     IdChecker(Printer* printer, LedIndicator* ledIndicator, IFirebaseDB* firebaseDB)
@@ -34,6 +34,7 @@ public:
         }
         Serial.printf("got ID %s \n", id.c_str());
         isRequestPending = true;
+        ledIndicator->displayLoadingUser();
         lastRequest = millis();
         lastResult = firebaseDB->getUser(id);
         lastId = id;
@@ -48,6 +49,7 @@ public:
             {
                 Serial.println("Request timeout, resetting");
                 isRequestPending = false;
+                ledIndicator->clear();
                 ledIndicator->displayError();
                 return;
             }
@@ -64,6 +66,7 @@ public:
         {
             Serial.println("handle user result error");
             isRequestPending = false;
+            ledIndicator->clear();
             ledIndicator->displayError();
             return;
         }
@@ -79,6 +82,7 @@ public:
 
         if(!isAuthorised && defaultAmount <= 0)
         {
+            ledIndicator->clear();
             ledIndicator->displayUnauthorised();
             Firebase.printf("handle user result, Error task: %s, msg: %s, code: %d\n", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
             isRequestPending = false;
@@ -100,7 +104,9 @@ public:
 
         if(left <= 0)
         {
-            ledIndicator->displayReachedMax()   ;
+            ledIndicator->clear();
+            ledIndicator->displayReachedMax();
+
             Firebase.printf("No more tokens left for user %s\n", lastId.c_str());
             isRequestPending = false;
             return;

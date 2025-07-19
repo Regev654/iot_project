@@ -54,6 +54,7 @@ void monitorMemory()
 
 void loop() {
     monitorMemory();
+    ledIndicator->onTrigger();
 
     if(!wifiConnection->isReady())
     {
