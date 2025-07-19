@@ -10,6 +10,7 @@ class BarcodeScanner : public Sensor
     static constexpr int ID_LENGTH = 9;
     HardwareSerial serial;
     IdListener* idListener = nullptr;
+    bool ignoredFirstError = false;
 
 public:
     explicit BarcodeScanner(IdListener* listener):
@@ -33,7 +34,14 @@ public:
         std::string id = serial.readStringUntil('\r').c_str();
         if(id.length() != ID_LENGTH)
         {
-            Serial.printf("Invalid ID length, got %s\n", id.c_str());
+            if(!ignoredFirstError)
+            {
+                ignoredFirstError = true;
+                Serial.printf("barcode scanner: ignoring first error. len: %d, data: %s\n", id.length(), id.c_str());
+                return;
+            }
+
+            Serial.printf("barcode scanner: Invalid ID length. len:, data %s\n", id.length(), id.c_str());
             idListener->onInputError();
             return;
         }

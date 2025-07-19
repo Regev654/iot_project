@@ -116,6 +116,7 @@ WiFiClass WiFi;
 int auth_debug_print;
 int getAuth(UserAuth user_auth) {return 0;}
 void initializeApp(AsyncClientClass fb_client, FirebaseApp firebase_app, int auth, int auth_debug_print, const char* task_name){}
+void initializeApp(AsyncClientClass fb_client, FirebaseApp firebase_app, int auth, int timeout, int auth_debug_print){}
 
 
 

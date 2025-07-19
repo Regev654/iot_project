@@ -154,7 +154,7 @@ public:
 
     void clear()
     {
-        Serial.println("\nclear");
+        Serial.println("\nled display: clear");
         pixels.clear();
         pixels.show();
     }

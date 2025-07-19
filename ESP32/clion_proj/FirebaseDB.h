@@ -12,47 +12,12 @@
 #include "IAsyncResult.h"
 #include <string>
 #include <memory>
+#include "IFirebaseDB.h"
 
-class IFirebaseDB
-{
-public:
-    virtual void setup() = 0;
-    virtual bool isReady() = 0;
-    virtual void onWifiDisconnect() = 0;
-    virtual std::unique_ptr<IAsyncResult> getUser(const std::string& id) = 0;
-    virtual std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) = 0;
-    virtual std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) = 0;
-};
-
-class FirebaseDBMock : public IFirebaseDB
-{
-public:
-    void setup() override{}
-
-    bool isReady() override{return true;}
-
-    void onWifiDisconnect() override{}
-
-    std::unique_ptr<IAsyncResult> getUser(const std::string& id) override
-    {
-        return std::make_unique<UserAsyncResultMock>(id);
-    }
-
-    std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) override
-    {
-        return std::make_unique<UserAsyncResultMock>(id);
-    }
-
-    std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) override
-    {
-        return std::make_unique<UserAsyncResultMock>(id);
-    }
-};
 
 class FirebaseDB : public IFirebaseDB
 {
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEvent";
-    static constexpr int WIFI_CONNECT_TIMEOUT = 1000;
 
     LedIndicator* ledIndicator;
     SSL_CLIENT ssl_client;
@@ -146,7 +111,7 @@ private:
 
         Serial.println("FirebaseDB connection setup");
         set_ssl_client_insecure_and_buffer(ssl_client);
-        initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "authTask");
+        initializeApp(fb_client, firebase_app, getAuth(user_auth), 120*1000,auth_debug_print);
         firebase_app.getApp<RealtimeDatabase>(database);
         database.url(FIREBASE_DATABASE_URL);
         Serial.println("FirebaseDB connection done");
@@ -167,11 +132,11 @@ private:
     {
         unsigned long before = millis();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.printf("before firebase loop %d\n", millis() - lastTimeTriggered);
+            Serial.printf("\nbefore firebase loop %d\n", millis() - lastTimeTriggered);
         }
         firebase_app.loop();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.println("after firebase loop");
+            Serial.println("\nafter firebase loop");
             if(millis() - before > 100) {
                 Serial.printf("Firebase loop took %lu ms\n", millis() - before);
             }
@@ -203,7 +168,7 @@ private:
 
         if (!activeEventResult.available())
             return;
-        Firebase.printf("active event, task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
+        Firebase.printf("\nactive event, task: %s, payload: ***%s****\n", activeEventResult.uid().c_str(), activeEventResult.c_str());
         auto& stream = activeEventResult.to<RealtimeDatabaseResult>();
         if(std::string("keep-alive") == stream.event().c_str())
         {

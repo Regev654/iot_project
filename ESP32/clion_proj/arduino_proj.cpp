@@ -6,49 +6,67 @@
 #include "IdChecker.h"
 #include "FirebaseDB.h"
 #include "WifiConnection.h"
+#include <memory>
+
+using std::unique_ptr;
+using std::make_unique;
 
 
-LedIndicator ledIndicator;
-WifiConnection wifiConnection(&ledIndicator);
-FirebaseDB firebaseDB(&ledIndicator);
-//FirebaseDBMock firebaseDB;
-// !!!important!!!
-//need to init the LED after firebase to avoid error
-//e (5) rmt: rmt_new_tx_channel(269): not able to power down in light sleep neopixel
-Printer printer;
-IdChecker idChecker(&printer, &ledIndicator, &firebaseDB);
-MagneticReader magneticReader(&idChecker);
-BarcodeScanner barcodeScanner(&idChecker);
+auto ledIndicator = make_unique<LedIndicator>();
+auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get());
+auto firebaseDB = make_unique<FirebaseDB>(ledIndicator.get());
+auto printer = make_unique<Printer>();
+auto idChecker = make_unique<IdChecker>(printer.get(), ledIndicator.get(), firebaseDB.get());
+auto magneticReader = make_unique<MagneticReader>(idChecker.get());
+auto barcodeScanner = make_unique<BarcodeScanner>(idChecker.get());
 
 void setup() {
     Serial.begin(115200);
     Serial.println("starting");
 
-    ledIndicator.setup();
-    printer.setup();
-    magneticReader.setUp();
-    barcodeScanner.setup();
-    wifiConnection.setup();
-    firebaseDB.setup();
+    ledIndicator->setup();
+    printer->setup();
+    magneticReader->setUp();
+    barcodeScanner->setup();
+    wifiConnection->setup();
+    firebaseDB->setup();
 
     Serial.println("finished setups connection");
 }
 
-bool lastReady = false;
+unsigned int lastTime = 0;
+unsigned int timeInterval = 1000;
+unsigned int timeIntervalStep = 1000;
+void monitorMemory()
+{
+    if(millis() - lastTime < timeInterval) {
+        return;
+    }
+    Serial.printf("\nFree heap: %u\n", ESP.getFreeHeap());
+    Serial.printf("Free stack: %u\n", uxTaskGetStackHighWaterMark(NULL));
+    lastTime = millis();
+    if(timeInterval < 60*1000)
+    {
+        timeInterval += timeIntervalStep;
+        timeIntervalStep += 500;
+    }
+}
+
 void loop() {
+    monitorMemory();
 
-    if(!wifiConnection.isReady())
+    if(!wifiConnection->isReady())
     {
-        firebaseDB.onWifiDisconnect();
+        firebaseDB->onWifiDisconnect();
         return;
     }
 
-    if(!firebaseDB.isReady())
+    if(!firebaseDB->isReady())
     {
         return;
     }
 
-    magneticReader.onTrigger();
-    barcodeScanner.onTrigger();
-    idChecker.onTrigger();
+    magneticReader->onTrigger();
+    barcodeScanner->onTrigger();
+    idChecker->onTrigger();
 }

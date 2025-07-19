@@ -21,6 +21,16 @@ unsigned long millis(){return 0;}
 
 #define SERIAL_8N1 (-1)
 
+class ESPclass
+{
+public:
+    unsigned int getFreeHeap(){return 0;}
+};
+
+ESPclass ESP;
+
+unsigned int uxTaskGetStackHighWaterMark(void *) {return 0;}
+
 class String
 {
 public:
