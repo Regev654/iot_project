@@ -29,7 +29,7 @@ public:
     {
         if(isRequestPending)
         {
-            Serial.print("\nPrevious ID processing is still pending, ignoring new ID. ";
+            Serial.print("\nPrevious ID processing is still pending, ignoring new ID. ");
             return;
         }
         Serial.printf("\ngot ID %s. ", id.c_str());
@@ -47,7 +47,7 @@ public:
         {
             if(millis() - lastRequest > REQUEST_TIMEOUT)
             {
-                Serial.print("\nRequest timeout, resetting. ";
+                Serial.print("\nRequest timeout, resetting. ");
                 isRequestPending = false;
                 ledIndicator->clear();
                 ledIndicator->displayError();
@@ -64,7 +64,7 @@ public:
 
         if (lastResult->isError())
         {
-            Serial.print("\nhandle user result error. ";
+            Serial.print("\nhandle user result error. ");
             isRequestPending = false;
             ledIndicator->clear();
             ledIndicator->displayError();

@@ -77,7 +77,7 @@ public:
         if(!isLastReady)
             return;
 
-        Serial.print("\nfirebase disconnected due to wifi disconnection. ";
+        Serial.print("\nfirebase disconnected due to wifi disconnection. ");
         isLastReady = false;
     }
 
@@ -109,13 +109,13 @@ private:
             return;
         }
 
-        Serial.print("\nFirebaseDB connection setup. ";
+        Serial.print("\nFirebaseDB connection setup. ");
         ledIndicator->displayLoadingFirebase();
         set_ssl_client_insecure_and_buffer(ssl_client);
         initializeApp(fb_client, firebase_app, getAuth(user_auth), auth_debug_print, "auth");
         firebase_app.getApp<RealtimeDatabase>(database);
         database.url(FIREBASE_DATABASE_URL);
-        Serial.print("\nFirebaseDB connection setup done. ";
+        Serial.print("\nFirebaseDB connection setup done. ");
         hadSetup = true;
     }
 
@@ -125,7 +125,7 @@ private:
             return;
 
         ledIndicator->clear();
-        Serial.print("\nFirebase connected. ";
+        Serial.print("\nFirebase connected. ");
         isLastReady = true;
     }
 
@@ -137,7 +137,7 @@ private:
         }
         firebase_app.loop();
         if(millis() - lastTimeTriggered > 100) {
-            Serial.print("\nafter firebase loop. ";
+            Serial.print("\nafter firebase loop. ");
             if(millis() - before > 100) {
                 Serial.printf("\nFirebase loop took %lu ms. ", millis() - before);
             }
@@ -148,11 +148,11 @@ private:
     void registerActiveEvent()
     {
         if(!isSetActiveEvent) {
-            Serial.print("\nRegistering active event. ";
+            Serial.print("\nRegistering active event. ");
             database.setSSEFilters("get,put,patch");
             database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
             isSetActiveEvent = true;
-            Serial.print("\nRegistering active event finished. ";
+            Serial.print("\nRegistering active event finished. ");
         }
     }
 
@@ -173,13 +173,13 @@ private:
         auto& stream = activeEventResult.to<RealtimeDatabaseResult>();
         if(std::string("keep-alive") == stream.event().c_str())
         {
-            Serial.print("\nactive event Keep-alive event received, skipping update. ";
+            Serial.print("\nactive event Keep-alive event received, skipping update. ");
             return;
         }
         activeEvent = stream.to<const char *>();
         if(activeEvent.empty())
         {
-            Serial.print("\nActive event is empty, skipping update. ";
+            Serial.print("\nActive event is empty, skipping update. ");
             return;
         }
         Serial.printf("\nActive event updated: %s. ", activeEvent.c_str());

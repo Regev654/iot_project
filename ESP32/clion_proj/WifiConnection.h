@@ -23,6 +23,7 @@ public:
     void setup()
     {
         Serial.println("wifi setup");
+        Serial.printf("connection with WIFI_SSID: %s, WIFI_PASSWORD: %s. ", WIFI_SSID, WIFI_PASSWORD);
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
         WiFi.setSleep(false);
         Serial.println("wifi setup done");
@@ -35,7 +36,7 @@ public:
         {
             if(isLastConnected)
             {
-                Serial.print("\nConnecting to WiFi. ";
+                Serial.print("\nConnecting to WiFi. ");
                 isLastConnected = false;
             }
             ledIndicator->displayLoadingWifi();

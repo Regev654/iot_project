@@ -45,7 +45,7 @@ public:
 
         if(!USE_PRINTER)
         {
-            Serial.print("\nPrinter is disabled, printing to serial only. ";
+            Serial.print("\nPrinter is disabled, printing to serial only. ");
             return;
         }
         setAlignCenter();
