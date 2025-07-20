@@ -45,6 +45,7 @@ public:
         return a;
     }
     String event(){return {};}
+    String data(){return {};}
 };
 
 class AsyncResult{

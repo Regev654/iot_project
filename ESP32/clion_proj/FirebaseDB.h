@@ -13,11 +13,13 @@
 #include <string>
 #include <memory>
 #include "IFirebaseDB.h"
+#include "ActiveEvent.h"
 
 
 class FirebaseDB : public IFirebaseDB
 {
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEvent";
+    static constexpr const char* ACTIVE_EVENT_PATH_V2 = "/Test/LiveEvent";
 
     LedIndicator* ledIndicator;
     SSL_CLIENT ssl_client;
@@ -28,6 +30,7 @@ class FirebaseDB : public IFirebaseDB
 
 
     std::string activeEvent;
+    int defaultAmount = 0;
     AsyncResult activeEventResult;
     bool isSetActiveEvent = false;
     bool hadSetup = false;
@@ -79,6 +82,11 @@ public:
 
         Serial.print("\nfirebase disconnected due to wifi disconnection. ");
         isLastReady = false;
+    }
+
+    int getDefaultAmount() override
+    {
+        return defaultAmount;
     }
 
     std::unique_ptr<IAsyncResult> getUser(const std::string& id)
@@ -150,7 +158,12 @@ private:
         if(!isSetActiveEvent) {
             Serial.print("\nRegistering active event. ");
             database.setSSEFilters("get,put,patch");
-            database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
+            if(VERSION < 2) {
+                database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
+            }
+            else {
+                database.get(fb_client, ACTIVE_EVENT_PATH_V2, activeEventResult, true);
+            }
             isSetActiveEvent = true;
             Serial.print("\nRegistering active event finished. ");
         }
@@ -176,13 +189,23 @@ private:
             Serial.print("\nactive event Keep-alive event received, skipping update. ");
             return;
         }
-        activeEvent = stream.to<const char *>();
+
+        if(VERSION < 2) {
+            activeEvent = stream.to<const char*>();
+        }
+        else {
+            ActiveEvent event(stream.data().c_str());
+            activeEvent = event.getId();
+            defaultAmount = event.getDefaultAmount();
+        }
+
+
         if(activeEvent.empty())
         {
             Serial.print("\nActive event is empty, skipping update. ");
             return;
         }
-        Serial.printf("\nActive event updated: %s. ", activeEvent.c_str());
+        Serial.printf("\nActive event updated: '%s', default amount '%d'. ", activeEvent.c_str(), defaultAmount);
     }
 
     std::string getUserUrl(const std::string& id) const

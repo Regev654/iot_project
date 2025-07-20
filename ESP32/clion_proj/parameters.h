@@ -1,4 +1,5 @@
 #define USE_PRINTER     0
+#define VERSION         2
 #define LED_PIN		    11
 #define PIXELS_COUNT    3
 #define PRINTER_UART    1

@@ -46,14 +46,23 @@ public:
 
     void processCurrentId()
     {
+        Serial.printf("\nmagnetic reader: got data, len:%d, data %s. ", currentId.length(), currentId.c_str());
+
         if(currentId.size() < PREFIX_LENGTH + ID_LENGTH || currentId[0] != '@' || currentId[1] != '%')
         {
-            Serial.printf("\nmagnetic reader: Invalid ID format, len:%d, data %s. ", currentId.length(), currentId.c_str());
+            Serial.printf("\nmagnetic reader: Invalid ID format");
             idListener->onInputError();
             return;
         }
 
         currentId = currentId.substr(PREFIX_LENGTH, ID_LENGTH);
+        for(char& c : currentId) {
+            if (c < '0' || c > '9') {
+                Serial.printf("\nmagnetic reader: Invalid character that is not number");
+                idListener->onInputError();
+                return;
+            }
+        }
         idListener->onIdReceived(currentId);
     }
 

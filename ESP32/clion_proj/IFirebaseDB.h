@@ -12,6 +12,7 @@ public:
     virtual void setup() = 0;
     virtual bool isReady() = 0;
     virtual void onWifiDisconnect() = 0;
+    virtual int getDefaultAmount() = 0;
     virtual std::unique_ptr<IAsyncResult> getUser(const std::string& id) = 0;
     virtual std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) = 0;
     virtual std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) = 0;
@@ -25,6 +26,8 @@ public:
     bool isReady() override{return true;}
 
     void onWifiDisconnect() override{}
+
+    int getDefaultAmount() override {return 0;}
 
     std::unique_ptr<IAsyncResult> getUser(const std::string& id) override
     {

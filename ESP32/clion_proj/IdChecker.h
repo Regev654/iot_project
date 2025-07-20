@@ -18,7 +18,6 @@ class IdChecker : public IdListener
     bool isRequestPending = false;
     unsigned long lastRequest = 0;
     static constexpr int REQUEST_TIMEOUT = 60*1000;
-    int defaultAmount = 0;
 public:
     IdChecker(Printer* printer, LedIndicator* ledIndicator, IFirebaseDB* firebaseDB)
         : printer(printer), ledIndicator(ledIndicator), firebaseDB(firebaseDB)
@@ -79,17 +78,18 @@ public:
         Firebase.printf("\nhandle user result, task: %s, payload: ***%s****. ", lastResult->uid().c_str(), lastResult->c_str());
         bool isAuthorised = std::string("null") != lastResult->c_str();
 
-        if(!isAuthorised && defaultAmount <= 0)
+        if(!isAuthorised && firebaseDB->getDefaultAmount() <= 0)
         {
             ledIndicator->clear();
             ledIndicator->displayUnauthorised();
-            Firebase.printf("\nhandle user result, Error task: %s, msg: %s, code: %d. ", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
+            Firebase.printf("\nhandle user result, Unauthorised task: %s, msg: %s, code: %d. ", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
             isRequestPending = false;
             return;
         }
 
-        if(!isAuthorised && defaultAmount > 0) {
-            User user(lastId, defaultAmount, "text", 0);
+        if(!isAuthorised && firebaseDB->getDefaultAmount() > 0) {
+            Firebase.printf("\nhandle user result, Unauthorised, setting default amount: %d, task: %s, msg: %s, code: %d. ",firebaseDB->getDefaultAmount(), lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
+            User user(lastId, firebaseDB->getDefaultAmount(), "text", 0);
             int left = getLeftAmount(user);
             user.increaseUsed(left);
             firebaseDB->setUser(lastId, user);
@@ -113,7 +113,6 @@ public:
 
         firebaseDB->updateUsedTokens(lastId, left);
         printAmount(user, left);
-        isRequestPending= false;
     }
 
     void onInputError() override
@@ -134,6 +133,8 @@ private:
 
     void printAmount(const User& user, int amount)
     {
+        isRequestPending= false;
+        ledIndicator->clear();
         printer->println(user.getText().c_str(), amount);
         ledIndicator->displaySuccess();
     }
