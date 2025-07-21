@@ -17,4 +17,5 @@ add_executable(iot arduino_proj.cpp
         WifiConnection.h
         IAsyncResult.h
         ActiveEvent.h
+        UserV3.h
 )
