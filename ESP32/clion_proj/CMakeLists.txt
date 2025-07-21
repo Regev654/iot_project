@@ -14,7 +14,6 @@ add_executable(iot arduino_proj.cpp
         FirebaseClient.h
         User.h
         ArduinoJson.h
-        WiFiMulti.h
         WifiConnection.h
         IAsyncResult.h
         ActiveEvent.h

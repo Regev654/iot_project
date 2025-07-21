@@ -25,6 +25,7 @@ class ESPclass
 {
 public:
     unsigned int getFreeHeap(){return 0;}
+    void restart() {}
 };
 
 ESPclass ESP;

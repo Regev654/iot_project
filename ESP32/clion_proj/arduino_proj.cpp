@@ -13,7 +13,13 @@ using std::make_unique;
 
 
 auto ledIndicator = make_unique<LedIndicator>();
-auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get());
+
+void onApStart(WiFiManager* notUsed)
+{
+    ledIndicator->displaySearchingWifi();
+}
+
+auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get(),onApStart);
 auto firebaseDB = make_unique<FirebaseDB>(ledIndicator.get());
 auto printer = make_unique<Printer>();
 auto idChecker = make_unique<IdChecker>(printer.get(), ledIndicator.get(), firebaseDB.get());

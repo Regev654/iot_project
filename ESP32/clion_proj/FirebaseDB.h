@@ -54,11 +54,15 @@ public:
     bool isReady()
     {
         connectSetup();
+
+        if(!firebase_app.ready() ||  activeEvent.empty()) {
+            ledIndicator->displayLoadingFirebase();
+        }
+
         firebaseLoop();
 
         if(!firebase_app.ready() )
         {
-            ledIndicator->displayLoadingFirebase();
             return false;
         }
 
@@ -67,7 +71,6 @@ public:
 
         if(activeEvent.empty())
         {
-            ledIndicator->displayLoadingFirebase();
             return false;
         }
 
@@ -82,6 +85,8 @@ public:
 
         Serial.print("\nfirebase disconnected due to wifi disconnection. ");
         isLastReady = false;
+        activeEvent = "";
+
     }
 
     int getDefaultAmount() override

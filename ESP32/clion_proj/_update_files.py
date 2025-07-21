@@ -11,7 +11,7 @@ blacklist = {'Adafruit_NeoPixel.h',
              'FirebaseClient.h',
              'ExampleFunctions.h',
              'ArduinoJson.h',
-             'WifiMulti.h'}
+             'WiFiManager.h'}
 
 
 destination_dir = '../arduino_proj/'

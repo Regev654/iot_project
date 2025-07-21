@@ -9,6 +9,7 @@
 enum class State
 {
     WIFI_LOADING,
+    WIFI_SEARCHING,
     FIREBASE_LOADING,
     USER_LOADING,
     IDLE,
@@ -177,6 +178,11 @@ public:
         ledState = State::WIFI_LOADING;
     }
 
+    void displaySearchingWifi()
+    {
+        ledState = State::WIFI_SEARCHING;
+    }
+
     void displayLoadingFirebase()
     {
         ledState = State::FIREBASE_LOADING;
@@ -197,6 +203,9 @@ public:
         switch (ledState) {
             case State::WIFI_LOADING:
                 displayLoading(100, 100, 0, ".W", 400); //yellow
+                break;
+            case State::WIFI_SEARCHING:
+                displayLoading(0, 10, 120, ".S", 400); //yellow
                 break;
             case State::FIREBASE_LOADING:
                 displayLoading(120, 10, 0, ".F", 700); //close to red
