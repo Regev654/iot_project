@@ -21,34 +21,30 @@ class Event {
   factory Event.fromJson(Map<String, dynamic> json) {
     final participants = json['Participants'] as Map<String, dynamic>?;
     final participantsMap = <String, Participant>{};
-    
     if (participants != null) {
       participants.forEach((key, value) {
         final participantData = value as Map<String, dynamic>;
-        participantsMap[key] = Participant(
-          id: key,
-          maxTokens: participantData['maxTokens'] ?? 0,
-          usedTokens: participantData['usedTokens'] ?? 0,
-          textToPrint: participantData['textToPrint'] ?? '',
-        );
+        participantsMap[key] = Participant.fromJson({
+          'ID': key,
+          'items': participantData['items'] ?? {},
+        });
       });
     }
-
     final groups = json['Groups'] as Map<String, dynamic>?;
     final groupsMap = <String, Group>{};
-    
     if (groups != null) {
       groups.forEach((key, value) {
         final groupData = value as Map<String, dynamic>;
         groupsMap[key] = Group(
           groupId: key,
           groupName: groupData['groupName'] ?? '',
-          amount: groupData['amount'] ?? 0,
-          participantIds: List<String>.from(groupData['ParticipantIDs'] ?? []),
+          participantIds: List<String>.from(groupData['participantIds'] ?? []),
+          items: groupData['items'] != null
+            ? (groupData['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+            : {},
         );
       });
     }
-
     return Event(
       eventId: json['ID'] as String,
       eventTitle: json['eventTitle'] as String,
@@ -61,7 +57,6 @@ class Event {
   factory Event.fromSnapshot(DataSnapshot snapshot) {
     final data = snapshot.value as Map<dynamic, dynamic>;
     final groups = <String, Group>{};
-    
     if (data['Groups'] != null) {
       final groupsData = data['Groups'] as Map<dynamic, dynamic>;
       groupsData.forEach((key, value) {
@@ -69,12 +64,14 @@ class Event {
         groups[key.toString()] = Group(
           groupId: key.toString(),
           groupName: groupData['groupName'] ?? '',
-          amount: groupData['amount'] ?? 0,
-          participantIds: List<String>.from(groupData['ParticipantIDs'] ?? []),
+          participantIds: List<String>.from(groupData['participantIds'] ?? []),
+          items: groupData['items'] != null
+            ? (groupData['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+            : {},
         );
       });
     }
-
+    // Participants from snapshot (if needed) can be handled similarly
     return Event(
       eventId: snapshot.key!,
       eventTitle: data['eventTitle'] ?? '',
@@ -93,9 +90,8 @@ class Event {
       'Participants': Map.fromEntries(
         participants.entries.map(
           (e) => MapEntry(e.key, {
-            'maxTokens': e.value.maxTokens,
-            'usedTokens': e.value.usedTokens,
-            'textToPrint': e.value.textToPrint,
+            'ID': e.key,
+            'items': e.value.items,
           }),
         ),
       ),
@@ -114,9 +110,7 @@ class Event {
         participants.entries.map(
           (e) => MapEntry(e.key, {
             'ID': e.key,
-            'maxTokens': e.value.maxTokens,
-            'usedTokens': e.value.usedTokens,
-            'textToPrint': e.value.textToPrint,
+            'items': e.value.items,
           }),
         ),
       ),

@@ -3,14 +3,14 @@ import 'package:firebase_database/firebase_database.dart';
 class Group {
   final String groupId;
   final String groupName;
-  final int amount;
   final List<String> participantIds;
+  final Map<String, Map<String, int>> items;
 
   Group({
     required this.groupId,
     required this.groupName,
-    required this.amount,
     this.participantIds = const [],
+    this.items = const {},
   });
 
   factory Group.fromSnapshot(DataSnapshot snapshot) {
@@ -18,8 +18,10 @@ class Group {
     return Group(
       groupId: snapshot.key!,
       groupName: data['groupName'] ?? '',
-      amount: data['amount'] ?? 0,
-      participantIds: List<String>.from(data['ParticipantIDs'] ?? []),
+      participantIds: List<String>.from(data['participantIds'] ?? []),
+      items: data['items'] != null
+        ? (data['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+        : {},
     );
   }
 
@@ -27,10 +29,12 @@ class Group {
     return Group(
       groupId: json['groupId'] ?? '',
       groupName: json['groupName'] ?? '',
-      amount: json['amount'] ?? 0,
       participantIds: json['participantIds'] != null
           ? List<String>.from(json['participantIds'])
           : [],
+      items: json['items'] != null
+        ? (json['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+        : {},
     );
   }
 
@@ -38,8 +42,8 @@ class Group {
     return {
       'groupId': groupId,
       'groupName': groupName,
-      'amount': amount,
       'participantIds': participantIds,
+      'items': items,
     };
   }
 } 

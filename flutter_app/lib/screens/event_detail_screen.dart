@@ -25,19 +25,21 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   Map<String, Participant> _participants = {};
   bool _isLoading = true;
   String _error = '';
-  late TextEditingController _textToPrintController;
   late TextEditingController _searchController;
   bool _isEditing = false;
   bool _isLiveEvent = false;
+  // Remove textToPrint field and editing logic
+  // Add default items button and dialog
+  Map<String, int> _defaultItems = {};
 
   @override
   void initState() {
     super.initState();
-    _eventRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}');
-    _textToPrintController = TextEditingController(text: widget.event.textToPrint);
+    _eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}');
     _searchController = TextEditingController();
     _setupParticipantsListener();
     _checkLiveStatus();
+    _loadDefaultItems();
   }
 
   void _setupParticipantsListener() {
@@ -45,17 +47,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       if (event.snapshot.value != null) {
         final data = event.snapshot.value as Map<dynamic, dynamic>;
         final participants = <String, Participant>{};
-        
         data.forEach((key, value) {
           final participantData = value as Map<dynamic, dynamic>;
-          participants[key.toString()] = Participant(
-            id: key.toString(),
-            maxTokens: participantData['maxTokens'] ?? 0,
-            usedTokens: participantData['usedTokens'] ?? 0,
-            textToPrint: participantData['textToPrint'] ?? '',
-          );
+          participants[key.toString()] = Participant.fromJson({
+            'ID': key.toString(),
+            'items': participantData['items'] ?? {},
+          });
         });
-
         setState(() {
           _participants = participants;
           _isLoading = false;
@@ -74,67 +72,99 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
-  Future<void> _updateTextToPrint() async {
-    if (_textToPrintController.text.isEmpty) return;
-
-    try {
-      // Update event's textToPrint
-      await _eventRef.update({'textToPrint': _textToPrintController.text});
-
-      // Update all participants' textToPrint
-      final batch = <String, Map<String, dynamic>>{};
-      for (final participant in _participants.values) {
-        batch[participant.id] = {
-          'textToPrint': _textToPrintController.text,
-          'maxTokens': participant.maxTokens,
-          'usedTokens': participant.usedTokens,
-        };
-      }
-      await _eventRef.child('Participants').update(batch);
-
-      setState(() => _isEditing = false);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating text: $e')),
-        );
+  Future<void> _loadDefaultItems() async {
+    final snapshot = await _eventRef.child('defaultItems').get();
+    if (snapshot.exists) {
+      final data = snapshot.value as Map?;
+      if (data != null) {
+        setState(() {
+          _defaultItems = data.map((k, v) => MapEntry(k.toString(), v as int));
+        });
       }
     }
   }
 
-  Future<void> _updateParticipantTokens(Participant participant, int newUsedTokens) async {
-    if (newUsedTokens < 0 || newUsedTokens > participant.maxTokens) return;
-
-    try {
-      await _eventRef.child('Participants/${participant.id}').update({
-        'usedTokens': newUsedTokens,
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error updating tokens: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleTokenAdjustment(Participant participant, bool increment) async {
-    final newValue = increment 
-        ? participant.usedTokens + 1 
-        : participant.usedTokens - 1;
-    await _updateParticipantTokens(participant, newValue);
-  }
-
-  Future<void> _handleTokenHold(Participant participant, bool increment) async {
-    final newValue = increment ? participant.maxTokens : 0;
-    await _updateParticipantTokens(participant, newValue);
+  Future<void> _editDefaultItemsDialog() async {
+    final items = Map<String, int>.from(_defaultItems);
+    final nameController = TextEditingController();
+    final tokensController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Edit Default Items'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...items.entries.map((entry) => ListTile(
+                    title: Text(entry.key),
+                    subtitle: Text('Max Tokens: ${entry.value}'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          items.remove(entry.key);
+                        });
+                      },
+                    ),
+                    onTap: () {
+                      nameController.text = entry.key;
+                      tokensController.text = entry.value.toString();
+                    },
+                  )),
+              Divider(),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: 'Item Name'),
+              ),
+              TextField(
+                controller: tokensController,
+                decoration: InputDecoration(labelText: 'Max Tokens'),
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final name = nameController.text.trim();
+                  final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
+                  if (name.isNotEmpty && tokens > 0) {
+                    setState(() {
+                      items[name] = tokens;
+                      nameController.clear();
+                      tokensController.clear();
+                    });
+                  }
+                },
+                child: Text('Add/Update Item'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                await _eventRef.child('defaultItems').set(items);
+                setState(() {
+                  _defaultItems = items;
+                });
+                Navigator.pop(context);
+              },
+              child: Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _makeLiveEvent() async {
     try {
       if (_isLiveEvent) {
         // Stop live event
-        await FirebaseDatabase.instance.ref().child('LiveEventV1').remove();
+        await FirebaseDatabase.instance.ref().child('LiveEventV3').remove();
         setState(() => _isLiveEvent = false);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -143,7 +173,11 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         }
       } else {
         // Start live event
-        await FirebaseDatabase.instance.ref().child('LiveEventV1').set(widget.event.eventId);
+        // Format: { id: <eventId>, items: {itemName: maxTokens, ...} }
+        await FirebaseDatabase.instance.ref().child('LiveEventV3').set({
+          'id': widget.event.eventId,
+          'items': _defaultItems,
+        });
         setState(() => _isLiveEvent = true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -162,9 +196,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _checkLiveStatus() async {
     try {
-      final liveEventSnapshot = await FirebaseDatabase.instance.ref().child('LiveEventV1').get();
+      final liveEventSnapshot = await FirebaseDatabase.instance.ref().child('LiveEventV3').get();
       if (liveEventSnapshot.exists) {
-        final liveEventId = liveEventSnapshot.value.toString();
+        final data = liveEventSnapshot.value as Map<dynamic, dynamic>?;
+        final liveEventId = data != null && data['id'] != null ? data['id'].toString() : null;
         setState(() => _isLiveEvent = liveEventId == widget.event.eventId);
       }
     } catch (e) {
@@ -223,9 +258,30 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   void dispose() {
     _participantsSubscription.cancel();
-    _textToPrintController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _updateParticipantItemTokens(Participant participant, String itemName, int newUsedTokens) async {
+    final items = Map<String, Map<String, int>>.from(participant.items);
+    final maxTokens = items[itemName]?['maxTokens'] ?? 0;
+    if (newUsedTokens < 0 || newUsedTokens > maxTokens) return;
+    items[itemName] = {
+      'maxTokens': maxTokens,
+      'usedTokens': newUsedTokens,
+    };
+    try {
+      await _eventRef.child('Participants/${participant.id}').update({
+        'ID': participant.id,
+        'items': items,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating tokens: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -420,59 +476,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                       Row(
                         children: [
                           Text(
-                            'Text to Print',
+                            'Default Items',
                             style: theme.textTheme.titleMedium?.copyWith(
                               color: Colors.grey[600],
                             ),
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: Icon(
-                              _isEditing ? Icons.save : Icons.edit,
-                              color: theme.colorScheme.primary,
-                            ),
-                            onPressed: () {
-                              if (_isEditing) {
-                                _updateTextToPrint();
-                              } else {
-                                setState(() => _isEditing = true);
-                              }
-                            },
+                            icon: Icon(Icons.edit),
+                            color: theme.colorScheme.primary,
+                            onPressed: _editDefaultItemsDialog,
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      if (_isEditing)
-                        TextField(
-                          controller: _textToPrintController,
-                          decoration: InputDecoration(
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            filled: true,
-                            fillColor: theme.colorScheme.surface,
-                            contentPadding: const EdgeInsets.all(12),
-                          ),
-                          maxLines: 2,
-                          style: theme.textTheme.bodyLarge,
-                        )
-                      else
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: theme.colorScheme.primary.withOpacity(0.2),
-                            ),
-                          ),
-                          child: Text(
-                            widget.event.textToPrint,
-                            style: theme.textTheme.bodyLarge?.copyWith(
-                              color: theme.colorScheme.primary,
-                            ),
-                          ),
+                      if (_defaultItems.isNotEmpty)
+                        Wrap(
+                          spacing: 8,
+                          children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
                         ),
                     ],
                   ),
@@ -511,7 +532,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               if (_participants.isNotEmpty) ...[
                                 const SizedBox(height: 4),
                                 Text(
-                                  '${_participants.values.where((p) => p.usedTokens > 0).length} Active (${((_participants.values.where((p) => p.usedTokens > 0).length / _participants.length) * 100).toStringAsFixed(1)}%)',
+                                  '${_participants.values.where((p) => p.items.isNotEmpty).length} Active (${((_participants.values.where((p) => p.items.isNotEmpty).length / _participants.length) * 100).toStringAsFixed(1)}%)',
                                   style: theme.textTheme.bodyMedium?.copyWith(
                                     color: theme.colorScheme.secondary,
                                     fontWeight: FontWeight.w500,
@@ -544,10 +565,6 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                           })
                           .take(10)
                           .map((participant) {
-                            final usagePercentage = participant.maxTokens > 0
-                                ? (participant.usedTokens / participant.maxTokens) * 100
-                                : 0.0;
-                            
                             return Card(
                               elevation: 1,
                               margin: const EdgeInsets.only(bottom: 8),
@@ -579,67 +596,50 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                           ),
                                         ),
                                         const Spacer(),
-                                        Row(
-                                          children: [
-                                            GestureDetector(
-                                              onTapDown: (_) => _handleTokenAdjustment(participant, false),
-                                              onLongPress: () => _handleTokenHold(participant, false),
-                                              child: Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: theme.colorScheme.error.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons.remove,
-                                                  color: theme.colorScheme.error,
-                                                  size: 20,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              '${participant.usedTokens}/${participant.maxTokens}',
-                                              style: theme.textTheme.titleMedium?.copyWith(
-                                                color: theme.colorScheme.primary,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            GestureDetector(
-                                              onTapDown: (_) => _handleTokenAdjustment(participant, true),
-                                              onLongPress: () => _handleTokenHold(participant, true),
-                                              child: Container(
-                                                padding: const EdgeInsets.all(8),
-                                                decoration: BoxDecoration(
-                                                  color: theme.colorScheme.primary.withOpacity(0.1),
-                                                  borderRadius: BorderRadius.circular(8),
-                                                ),
-                                                child: Icon(
-                                                  Icons.add,
-                                                  color: theme.colorScheme.primary,
-                                                  size: 20,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
                                       ],
                                     ),
-                                    const SizedBox(height: 12),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(4),
-                                      child: LinearProgressIndicator(
-                                        value: usagePercentage / 100,
-                                        backgroundColor: Colors.grey[200],
-                                        valueColor: AlwaysStoppedAnimation<Color>(
-                                          usagePercentage > 80
-                                              ? Colors.red
-                                              : usagePercentage > 50
-                                                  ? Colors.orange
-                                                  : Colors.green,
-                                        ),
-                                        minHeight: 8,
-                                      ),
+                                    const SizedBox(height: 8),
+                                    ExpansionTile(
+                                      title: Text('Items'),
+                                      children: participant.items.entries.map((entry) {
+                                        final itemName = entry.key;
+                                        final maxTokens = entry.value['maxTokens'] ?? 0;
+                                        final usedTokens = entry.value['usedTokens'] ?? 0;
+                                        final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
+                                        return ListTile(
+                                          title: Text(itemName),
+                                          subtitle: LinearProgressIndicator(
+                                            value: usagePercentage / 100,
+                                            backgroundColor: Colors.grey[200],
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              usagePercentage > 80
+                                                  ? Colors.red
+                                                  : usagePercentage > 50
+                                                      ? Colors.orange
+                                                      : Colors.green,
+                                            ),
+                                            minHeight: 8,
+                                          ),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(Icons.remove),
+                                                onPressed: usedTokens > 0
+                                                    ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
+                                                    : null,
+                                              ),
+                                              Text('$usedTokens/$maxTokens'),
+                                              IconButton(
+                                                icon: Icon(Icons.add),
+                                                onPressed: usedTokens < maxTokens
+                                                    ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
+                                                    : null,
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      }).toList(),
                                     ),
                                   ],
                                 ),

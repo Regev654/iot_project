@@ -22,7 +22,7 @@ class _EventListScreenState extends State<EventListScreen> {
   @override
   void initState() {
     super.initState();
-    _eventsRef = FirebaseDatabase.instance.ref().child('EventsV1');
+    _eventsRef = FirebaseDatabase.instance.ref().child('EventsV3');
     _setupEventsListener();
     _setupLiveEventListener();
   }
@@ -61,10 +61,11 @@ class _EventListScreenState extends State<EventListScreen> {
   }
 
   void _setupLiveEventListener() {
-    FirebaseDatabase.instance.ref().child('LiveEventV1').onValue.listen((event) {
+    FirebaseDatabase.instance.ref().child('LiveEventV3').onValue.listen((event) {
       if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>?;
         setState(() {
-          _liveEventId = event.snapshot.value.toString();
+          _liveEventId = data != null && data['id'] != null ? data['id'].toString() : null;
         });
       } else {
         setState(() {
@@ -82,7 +83,6 @@ class _EventListScreenState extends State<EventListScreen> {
 
   Future<void> _addEvent() async {
     final nameController = TextEditingController();
-    final textController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     final result = await showDialog<bool>(
@@ -106,15 +106,6 @@ class _EventListScreenState extends State<EventListScreen> {
                   }
                   return null;
                 },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: textController,
-                decoration: const InputDecoration(
-                  labelText: 'Text to Print',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
               ),
             ],
           ),
@@ -142,7 +133,7 @@ class _EventListScreenState extends State<EventListScreen> {
         final newEvent = Event(
           eventId: newEventRef.key!,
           eventTitle: nameController.text,
-          textToPrint: textController.text,
+          textToPrint: '',
         );
 
         await newEventRef.set(newEvent.toMap());

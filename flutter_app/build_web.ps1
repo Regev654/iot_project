@@ -73,4 +73,4 @@ if (-not (Test-Path "build/web/main.dart.js")) {
 
 # Deploy to Firebase
 Write-Host "Deploying to Firebase..."
-firebase deploy --only hosting:iot-beer-token-98fce --force --project iot-beer-token
+firebase deploy --only hosting:iot-beer-token-v3 --force --project iot-beer-token

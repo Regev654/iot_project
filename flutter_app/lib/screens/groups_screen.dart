@@ -28,7 +28,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
   @override
   void initState() {
     super.initState();
-    _groupsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/groups');
+    _groupsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/groups');
     _setupGroupsListener();
   }
 
@@ -43,11 +43,18 @@ class _GroupsScreenState extends State<GroupsScreen> {
         data.forEach((key, value) {
           if (value != null) {
             final groupData = value as Map<dynamic, dynamic>;
+            final rawItems = groupData['items'] as Map?;
+            final items = <String, Map<String, int>>{};
+            if (rawItems != null) {
+              rawItems.forEach((k, v) {
+                items[k.toString()] = Map<String, int>.from(v as Map);
+              });
+            }
             groups[key.toString()] = Group(
               groupId: key.toString(),
               groupName: groupData['groupName'] ?? '',
-              amount: groupData['amount'] ?? 0,
               participantIds: List<String>.from(groupData['participantIds'] ?? []),
+              items: items,
             );
           }
         });
@@ -82,7 +89,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   Future<void> _addGroup() async {
     final nameController = TextEditingController();
-    final amountController = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     final result = await showDialog<bool>(
@@ -103,24 +109,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a group name';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: amountController,
-                decoration: const InputDecoration(
-                  labelText: 'Token Amount',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter a token amount';
-                  }
-                  if (int.tryParse(value) == null) {
-                    return 'Please enter a valid number';
                   }
                   return null;
                 },
@@ -151,7 +139,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
         final newGroup = Group(
           groupId: newGroupRef.key!,
           groupName: nameController.text,
-          amount: int.parse(amountController.text),
+          participantIds: [],
+          items: {},
         );
 
         await newGroupRef.set(newGroup.toMap());
@@ -165,6 +154,13 @@ class _GroupsScreenState extends State<GroupsScreen> {
     }
   }
 
+  // Add a helper to validate Firebase keys
+  bool isValidFirebaseKey(String key) {
+    if (key.isEmpty) return false;
+    return !key.contains(RegExp(r'[.#$\[\]/]'));
+  }
+
+  // Fix participant creation logic to only set items with valid keys
   Future<void> _addParticipant(String groupId) async {
     if (groupId.isEmpty) {
       print('Error: Tried to add participant with empty groupId');
@@ -194,6 +190,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
               if (value == null || value.isEmpty) {
                 return 'Please enter participant ID';
               }
+              if (!isValidFirebaseKey(value)) {
+                return 'Invalid ID: cannot contain . # \$ [ ] / or be empty';
+              }
               return null;
             },
           ),
@@ -217,8 +216,8 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
     if (result != null) {
       try {
-        if (result.isEmpty) {
-          print('Manual add: empty participant ID, skipping.');
+        if (result.isEmpty || !isValidFirebaseKey(result)) {
+          print('Manual add: empty or invalid participant ID, skipping.');
           return;
         }
         print('Manual add: groupId=$groupId, eventId=${widget.event.eventId}, participantId=$result');
@@ -244,22 +243,23 @@ class _GroupsScreenState extends State<GroupsScreen> {
         });
 
         // Add to event's Participants node
-        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
-        // Calculate new maxTokens as sum of all group amounts for this participant
-        int totalTokens = 0;
-        for (final g in _groups.values) {
-          if (g.participantIds.contains(result)) {
-            totalTokens += g.amount;
-          }
-        }
-        // Also add the current group if not yet in _groups (for new group)
-        if (!(_groups[groupId]?.participantIds.contains(result) ?? false)) {
-          totalTokens += group.amount;
+        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
+        // Build items from all groups this participant is in
+        final allGroups = _groups.values.where((g) => g.participantIds.contains(result) || g.groupId == groupId);
+        final items = <String, Map<String, int>>{};
+        for (final g in allGroups) {
+          g.items.forEach((itemName, itemData) {
+            if (isValidFirebaseKey(itemName)) {
+              items[itemName] = {
+                'maxTokens': (items[itemName]?['maxTokens'] ?? 0) + (itemData['maxTokens'] ?? 0),
+                'usedTokens': 0,
+              };
+            }
+          });
         }
         await participantsRef.child(result).set({
-          'maxTokens': totalTokens,
-          'usedTokens': 0,
-          'textToPrint': widget.event.textToPrint,
+          'ID': result,
+          'items': items,
         });
 
         if (mounted) {
@@ -342,7 +342,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         });
 
         // Add to event's Participants node
-        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
+        final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
         final batch = <String, Map<String, dynamic>>{};
         for (final participantId in participants) {
           if (participantId.isEmpty) {
@@ -353,17 +353,18 @@ class _GroupsScreenState extends State<GroupsScreen> {
           int totalTokens = 0;
           for (final g in _groups.values) {
             if (g.participantIds.contains(participantId)) {
-              totalTokens += g.amount;
+              totalTokens += g.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
             }
           }
           // Also add the current group if not yet in _groups (for new group)
           if (!(_groups[groupId]?.participantIds.contains(participantId) ?? false)) {
-            totalTokens += group.amount;
+            totalTokens += group.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
           }
           batch[participantId] = {
-            'maxTokens': totalTokens,
-            'usedTokens': 0,
-            'textToPrint': widget.event.textToPrint,
+            'ID': participantId,
+            'items': [
+              {widget.event.textToPrint: {'maxTokens': totalTokens, 'usedTokens': 0}}
+            ],
           };
         }
         print('Batch keys: ${batch.keys.toList()}');
@@ -465,7 +466,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       await _groupsRef.child(groupId).remove();
 
       // Update maxTokens for all participants in the deleted group
-      final participantsRef = FirebaseDatabase.instance.ref().child('EventsV1/${widget.event.eventId}/Participants');
+      final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
       final batch = <String, Map<String, dynamic>>{};
 
       for (final participantId in participantsToUpdate) {
@@ -473,7 +474,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
         int totalTokens = 0;
         for (final group in _groups.values) {
           if (group.groupId != groupId && group.participantIds.contains(participantId)) {
-            totalTokens += group.amount;
+            totalTokens += group.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
           }
         }
 
@@ -481,13 +482,23 @@ class _GroupsScreenState extends State<GroupsScreen> {
         final participantSnapshot = await participantsRef.child(participantId).get();
         if (participantSnapshot.exists) {
           final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
-          final currentUsedTokens = participantData['usedTokens'] ?? 0;
-
-          // Update maxTokens and ensure usedTokens doesn't exceed new maxTokens
+          final items = participantData['items'] as List<dynamic>? ?? [];
+          // Find the item for this event's textToPrint
+          int usedTokens = 0;
+          int idx = items.indexWhere((i) => i.containsKey(widget.event.textToPrint));
+          if (idx != -1) {
+            usedTokens = items[idx][widget.event.textToPrint]['usedTokens'] ?? 0;
+            // Update the item
+            items[idx][widget.event.textToPrint] = {
+              'maxTokens': totalTokens,
+              'usedTokens': usedTokens > totalTokens ? totalTokens : usedTokens,
+            };
+          } else {
+            items.add({widget.event.textToPrint: {'maxTokens': totalTokens, 'usedTokens': 0}});
+          }
           batch[participantId] = {
-            'maxTokens': totalTokens,
-            'usedTokens': currentUsedTokens > totalTokens ? totalTokens : currentUsedTokens,
-            'textToPrint': participantData['textToPrint'] ?? widget.event.textToPrint,
+            'ID': participantId,
+            'items': items,
           };
         }
       }
@@ -524,7 +535,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
             const SizedBox(height: 8),
             Text('Group: ${_groups[groupId]?.groupName ?? "Unknown"}'),
             const SizedBox(height: 8),
-            Text('Token Amount: ${_groups[groupId]?.amount ?? 0}'),
+            Text('Token Amount: ${_groups[groupId]?.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0)) ?? 0}'),
           ],
         ),
         actions: [
@@ -543,6 +554,108 @@ class _GroupsScreenState extends State<GroupsScreen> {
             child: const Text('Remove'),
           ),
         ],
+      ),
+    );
+  }
+
+  // Add this helper function to update all participants' items after group items change
+  Future<void> _updateAllParticipantsForEvent() async {
+    final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
+    // Gather all group items and participantIds
+    final Map<String, Map<String, int>> participantItems = {};
+    for (final group in _groups.values) {
+      for (final pid in group.participantIds) {
+        participantItems.putIfAbsent(pid, () => {});
+        for (final entry in group.items.entries) {
+          final itemName = entry.key;
+          final maxTokens = entry.value['maxTokens'] ?? 0;
+          participantItems[pid]![itemName] = (participantItems[pid]![itemName] ?? 0) + maxTokens;
+        }
+      }
+    }
+    // Update each participant's items
+    for (final pid in participantItems.keys) {
+      final itemsMap = <String, Map<String, int>>{};
+      participantItems[pid]!.forEach((itemName, maxTokens) {
+        itemsMap[itemName] = {'maxTokens': maxTokens, 'usedTokens': 0};
+      });
+      await participantsRef.child(pid).update({'ID': pid, 'items': itemsMap});
+    }
+  }
+
+  // Add this dialog for adding/editing items for a group
+  Future<void> _editGroupItemsDialog(Group group) async {
+    final items = Map<String, Map<String, int>>.from(group.items);
+    final nameController = TextEditingController();
+    final tokensController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('Edit Items for ${group.groupName}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ...items.entries.map((entry) => ListTile(
+                    title: Text(entry.key),
+                    subtitle: Text('Max Tokens: ${entry.value['maxTokens'] ?? 0}'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          items.remove(entry.key);
+                        });
+                      },
+                    ),
+                    onTap: () {
+                      nameController.text = entry.key;
+                      tokensController.text = (entry.value['maxTokens'] ?? 0).toString();
+                    },
+                  )),
+              Divider(),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: 'Item Name'),
+              ),
+              TextField(
+                controller: tokensController,
+                decoration: InputDecoration(labelText: 'Max Tokens'),
+                keyboardType: TextInputType.number,
+              ),
+              SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () {
+                  final name = nameController.text.trim();
+                  final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
+                  if (name.isNotEmpty && tokens > 0) {
+                    setState(() {
+                      items[name] = {'maxTokens': tokens, 'usedTokens': 0};
+                      nameController.clear();
+                      tokensController.clear();
+                    });
+                  }
+                },
+                child: Text('Add/Update Item'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                // Save items to group
+                await _groupsRef.child(group.groupId).update({'items': items});
+                Navigator.pop(context);
+                // After saving, update all participants
+                await _updateAllParticipantsForEvent();
+              },
+              child: Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -686,6 +799,16 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                         ),
                                       ),
                                       IconButton(
+                                        icon: Icon(Icons.add),
+                                        tooltip: 'Add Item',
+                                        onPressed: () => _editGroupItemsDialog(group),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(Icons.edit),
+                                        tooltip: 'Edit Items',
+                                        onPressed: () => _editGroupItemsDialog(group),
+                                      ),
+                                      IconButton(
                                         icon: const Icon(Icons.delete),
                                         color: theme.colorScheme.error,
                                         onPressed: () => _deleteGroup(group.groupId),
@@ -695,13 +818,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                   const SizedBox(height: 16),
                                   Row(
                                     children: [
-                                      _buildStatChip(
-                                        theme,
-                                        Icons.token,
-                                        '${group.amount} Tokens',
-                                        theme.colorScheme.secondary,
-                                      ),
-                                      const SizedBox(width: 12),
                                       _buildStatChip(
                                         theme,
                                         Icons.people,

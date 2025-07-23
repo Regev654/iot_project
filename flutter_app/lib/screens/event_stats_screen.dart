@@ -27,7 +27,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
 
   void _setupParticipantsListener() {
     final participantsRef = _dbRef
-        .child('EventsV1')
+        .child('EventsV3')
         .child(widget.event.eventId)
         .child('Participants');
 
@@ -37,12 +37,10 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
         setState(() {
           participants = data.entries.map((entry) {
             final participantData = entry.value as Map<dynamic, dynamic>;
-            return Participant(
-              id: entry.key.toString(),
-              maxTokens: participantData['maxTokens'] ?? 0,
-              usedTokens: participantData['usedTokens'] ?? 0,
-              textToPrint: participantData['textToPrint'] ?? '',
-            );
+            return Participant.fromJson({
+              'ID': entry.key.toString(),
+              'items': participantData['items'] ?? [],
+            });
           }).toList();
         });
       }
@@ -58,25 +56,38 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    // Calculate all statistics
-    final totalParticipants = participants.length;
-    final totalTokens = participants.fold(0, (sum, p) => sum + p.maxTokens);
-    final usedTokens = participants.fold(0, (sum, p) => sum + p.usedTokens);
-    final remainingTokens = totalTokens - usedTokens;
-    final usagePercentage = totalTokens > 0 ? (usedTokens / totalTokens * 100) : 0;
-    
-    // Advanced statistics
-    final participantsWithTokens = participants.where((p) => p.maxTokens - p.usedTokens > 0).length;
-    final averageTokensPerUser = totalParticipants > 0 ? usedTokens / totalParticipants : 0;
-    final maxTokensUsed = participants.fold(0, (max, p) => p.usedTokens > max ? p.usedTokens : max);
-    final participantsWithNoTokens = participants.where((p) => p.usedTokens == 0).length;
-    final participantsWithAllTokens = participants.where((p) => p.usedTokens == p.maxTokens).length;
-    
-    // Active users statistics
-    final activeUsers = participants.where((p) => p.usedTokens > 0).length;
-    final activeUsersPercentage = totalParticipants > 0 ? (activeUsers / totalParticipants * 100) : 0;
-    
+    // Gather all item names across all participants
+    final Set<String> allItemNames = {};
+    for (final p in participants) {
+      allItemNames.addAll(p.items.keys);
+    }
+    // Per-item statistics
+    final Map<String, Map<String, int>> itemStats = {};
+    for (final itemName in allItemNames) {
+      int total = 0;
+      int used = 0;
+      for (final p in participants) {
+        final maxT = p.items[itemName]?['maxTokens'] ?? 0;
+        final usedT = p.items[itemName]?['usedTokens'] ?? 0;
+        total += maxT;
+        used += usedT;
+      }
+      itemStats[itemName] = {
+        'total': total,
+        'used': used,
+        'remaining': total - used,
+        'usagePct': total > 0 ? ((used / total) * 100).round() : 0,
+      };
+    }
+    // Combined totals
+    int combinedTotal = 0;
+    int combinedUsed = 0;
+    for (final stats in itemStats.values) {
+      combinedTotal += stats['total'] ?? 0;
+      combinedUsed += stats['used'] ?? 0;
+    }
+    final combinedRemaining = combinedTotal - combinedUsed;
+    final combinedUsagePct = combinedTotal > 0 ? (combinedUsed / combinedTotal * 100) : 0;
     return Scaffold(
       appBar: AppBar(
         title: Text('Event Dashboard'),
@@ -99,6 +110,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Combined summary
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -110,174 +122,34 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.event.eventTitle,
+                        'All Items Combined',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.primary,
                         ),
                       ),
                       SizedBox(height: 8),
-                      Text(
-                        'Text to Print: ${widget.event.textToPrint}',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Total Participants',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              totalParticipants.toString(),
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Card(
-                      elevation: 2,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Active Users',
-                              style: TextStyle(
-                                color: Colors.grey[600],
-                                fontSize: 14,
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              '$activeUsers (${activeUsersPercentage.toStringAsFixed(1)}%)',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Token Usage Overview',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 16),
                       Row(
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Used Tokens',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  usedTokens.toString(),
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.green,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Remaining Tokens',
-                                  style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  remainingTokens.toString(),
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.orange,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          Expanded(child: _statTile('Total Tokens', combinedTotal, theme)),
+                          Expanded(child: _statTile('Used Tokens', combinedUsed, theme)),
+                          Expanded(child: _statTile('Remaining', combinedRemaining, theme)),
                         ],
                       ),
-                      SizedBox(height: 16),
+                      SizedBox(height: 8),
                       LinearProgressIndicator(
-                        value: usagePercentage / 100,
+                        value: combinedUsagePct / 100,
                         backgroundColor: Colors.grey[200],
                         valueColor: AlwaysStoppedAnimation<Color>(
-                          usagePercentage > 80 ? Colors.red : Colors.green,
+                          combinedUsagePct > 80 ? Colors.red : Colors.green,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: 4),
                       Text(
-                        '${usagePercentage.toStringAsFixed(1)}% Tokens Used',
+                        '${combinedUsagePct.toStringAsFixed(1)}% Tokens Used',
                         style: TextStyle(
-                          color: usagePercentage > 80 ? Colors.red : Colors.green,
+                          color: combinedUsagePct > 80 ? Colors.red : Colors.green,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -286,136 +158,57 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                 ),
               ),
               SizedBox(height: 16),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Advanced Statistics',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              'Participants with Unused Tokens',
-                              participantsWithTokens.toString(),
-                              Icons.people_outline,
-                              Colors.blue,
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatCard(
-                              'Average Tokens per User',
-                              averageTokensPerUser.toStringAsFixed(1),
-                              Icons.analytics_outlined,
-                              Colors.purple,
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildStatCard(
-                              'Maximum Tokens Used',
-                              maxTokensUsed.toString(),
-                              Icons.emoji_events_outlined,
-                              Colors.amber,
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            child: _buildStatCard(
-                              'Participants with No Tokens',
-                              participantsWithNoTokens.toString(),
-                              Icons.person_off_outlined,
-                              Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+              // Per-item stats
+              ...itemStats.entries.map((entry) {
+                final name = entry.key;
+                final stats = entry.value;
+                return Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-              ),
-              SizedBox(height: 16),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Top Participants',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 16),
-                      ...participants
-                          .where((p) => p.usedTokens > 0)
-                          .toList()
-                          .reversed
-                          .take(10)
-                          .map((p) => Padding(
-                                padding: EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      p.id,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      child: Text(
-                                        '${p.usedTokens} tokens',
-                                        style: TextStyle(
-                                          color: theme.colorScheme.primary,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )).toList(),
-                      if (participants.where((p) => p.usedTokens > 0).length > 10)
-                        Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Use search to find more participants',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
-                            ),
+                  child: Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: theme.colorScheme.primary,
                           ),
                         ),
-                    ],
+                        SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(child: _statTile('Total', stats['total'] ?? 0, theme)),
+                            Expanded(child: _statTile('Used', stats['used'] ?? 0, theme)),
+                            Expanded(child: _statTile('Remaining', stats['remaining'] ?? 0, theme)),
+                          ],
+                        ),
+                        SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: (stats['usagePct'] ?? 0) / 100,
+                          backgroundColor: Colors.grey[200],
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            (stats['usagePct'] ?? 0) > 80 ? Colors.red : Colors.green,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          '${stats['usagePct'] ?? 0}% Used',
+                          style: TextStyle(
+                            color: (stats['usagePct'] ?? 0) > 80 ? Colors.red : Colors.green,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
+                );
+              }).toList(),
             ],
           ),
         ),
@@ -423,67 +216,27 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
     );
   }
 
-  int _findMostCommonUsage(List<Participant> participants) {
-    final usageCounts = <int, int>{};
-    for (final p in participants) {
-      usageCounts[p.usedTokens] = (usageCounts[p.usedTokens] ?? 0) + 1;
-    }
-    return usageCounts.entries
-        .reduce((a, b) => a.value > b.value ? a : b)
-        .key;
-  }
-
-  Map<int, int> _calculateUsageDistribution(List<Participant> participants) {
-    final distribution = <int, int>{};
-    for (final p in participants) {
-      distribution[p.usedTokens] = (distribution[p.usedTokens] ?? 0) + 1;
-    }
-    return Map.fromEntries(
-      distribution.entries.toList()
-        ..sort((a, b) => a.key.compareTo(b.key)),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, color: color, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 12,
-                    ),
-                    maxLines: 2,
-                    softWrap: true,
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
-            ),
-          ],
+  Widget _statTile(String label, int value, ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[600],
+            fontSize: 14,
+          ),
         ),
-      ),
+        SizedBox(height: 4),
+        Text(
+          value.toString(),
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
     );
   }
 } 
