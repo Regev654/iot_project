@@ -88,6 +88,10 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
     }
     final combinedRemaining = combinedTotal - combinedUsed;
     final combinedUsagePct = combinedTotal > 0 ? (combinedUsed / combinedTotal * 100) : 0;
+    // User stats
+    final totalUsers = participants.length;
+    final activeUsers = participants.where((p) => p.items.values.any((item) => (item['usedTokens'] ?? 0) > 0)).length;
+    final activePct = totalUsers > 0 ? (activeUsers / totalUsers * 100) : 0;
     return Scaffold(
       appBar: AppBar(
         title: Text('Event Dashboard'),
@@ -110,6 +114,41 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Card(
+                color: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _userStatTile(
+                        icon: Icons.people,
+                        label: 'Total Users',
+                        value: totalUsers,
+                        color: theme.colorScheme.primary,
+                      ),
+                      _userStatTile(
+                        icon: Icons.person,
+                        label: 'Active Users',
+                        value: activeUsers,
+                        color: theme.colorScheme.secondary,
+                      ),
+                      _userStatTile(
+                        icon: Icons.percent,
+                        label: 'Active %',
+                        value: activePct,
+                        color: theme.colorScheme.tertiary,
+                        isPercent: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
               // Combined summary
               Card(
                 elevation: 2,
@@ -234,6 +273,31 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
             fontSize: 20,
             fontWeight: FontWeight.bold,
             color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _userStatTile({required IconData icon, required String label, required num value, required Color color, bool isPercent = false}) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 32),
+        SizedBox(height: 8),
+        Text(
+          isPercent ? '${value.toStringAsFixed(1)}%' : value.toString(),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        SizedBox(height: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 14,
           ),
         ),
       ],

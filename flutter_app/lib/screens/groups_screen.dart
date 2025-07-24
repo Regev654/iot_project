@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import '../models/event.dart';
 import '../models/group.dart';
+import 'item_edit_screen.dart';
 
 class GroupsScreen extends StatefulWidget {
   final Event event;
@@ -583,79 +584,29 @@ class _GroupsScreenState extends State<GroupsScreen> {
     }
   }
 
-  // Add this dialog for adding/editing items for a group
-  Future<void> _editGroupItemsDialog(Group group) async {
-    final items = Map<String, Map<String, int>>.from(group.items);
-    final nameController = TextEditingController();
-    final tokensController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('Edit Items for ${group.groupName}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ...items.entries.map((entry) => ListTile(
-                    title: Text(entry.key),
-                    subtitle: Text('Max Tokens: ${entry.value['maxTokens'] ?? 0}'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        setState(() {
-                          items.remove(entry.key);
-                        });
-                      },
-                    ),
-                    onTap: () {
-                      nameController.text = entry.key;
-                      tokensController.text = (entry.value['maxTokens'] ?? 0).toString();
-                    },
-                  )),
-              Divider(),
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(labelText: 'Item Name'),
-              ),
-              TextField(
-                controller: tokensController,
-                decoration: InputDecoration(labelText: 'Max Tokens'),
-                keyboardType: TextInputType.number,
-              ),
-              SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () {
-                  final name = nameController.text.trim();
-                  final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
-                  if (name.isNotEmpty && tokens > 0) {
-                    setState(() {
-                      items[name] = {'maxTokens': tokens, 'usedTokens': 0};
-                      nameController.clear();
-                      tokensController.clear();
-                    });
-                  }
-                },
-                child: Text('Add/Update Item'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                // Save items to group
-                await _groupsRef.child(group.groupId).update({'items': items});
-                Navigator.pop(context);
-                // After saving, update all participants
-                await _updateAllParticipantsForEvent();
-              },
-              child: Text('Save'),
-            ),
-          ],
+  Future<void> _editGroupItemsScreen(Group group) async {
+    final result = await Navigator.push<Map<String, int>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ItemEditScreen(
+          initialItems: group.items.map((k, v) => MapEntry(k, v['maxTokens'] ?? 0)),
+          title: 'Edit Items for ${group.groupName}',
         ),
+      ),
+    );
+    if (result != null) {
+      // Convert back to Map<String, Map<String, int>>
+      final items = result.map((k, v) => MapEntry(k, {'maxTokens': v, 'usedTokens': 0}));
+      await _groupsRef.child(group.groupId).update({'items': items});
+      await _updateAllParticipantsForEvent();
+    }
+  }
+
+  Future<void> _showAllGroupParticipantsScreen(Group group) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GroupParticipantsScreen(group: group, eventId: widget.event.eventId),
       ),
     );
   }
@@ -800,16 +751,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                       ),
                                       IconButton(
                                         icon: Icon(Icons.add),
-                                        tooltip: 'Add Item',
-                                        onPressed: () => _editGroupItemsDialog(group),
+                                        tooltip: 'Add/Edit Items',
+                                        onPressed: () => _editGroupItemsScreen(group),
                                       ),
                                       IconButton(
-                                        icon: Icon(Icons.edit),
-                                        tooltip: 'Edit Items',
-                                        onPressed: () => _editGroupItemsDialog(group),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete),
+                                        icon: Icon(Icons.delete),
                                         color: theme.colorScheme.error,
                                         onPressed: () => _deleteGroup(group.groupId),
                                       ),
@@ -875,24 +821,20 @@ class _GroupsScreenState extends State<GroupsScreen> {
                                                 )),
                                       if (group.participantIds.length > 10 && !(_showAllParticipants[group.groupId] ?? false))
                                         TextButton.icon(
-                                          onPressed: () async {
-                                            setState(() {
-                                              _isLoadingParticipants[group.groupId] = true;
-                                            });
-                                            // Simulate loading delay to prevent UI freeze
-                                            await Future.delayed(const Duration(milliseconds: 100));
-                                            setState(() {
-                                              _showAllParticipants[group.groupId] = true;
-                                              _isLoadingParticipants[group.groupId] = false;
-                                            });
-                                          },
-                                          icon: const Icon(Icons.expand_more),
+                                          onPressed: () => _showAllGroupParticipantsScreen(group),
+                                          icon: const Icon(Icons.people),
                                           label: const Text('Load All'),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: theme.colorScheme.primary,
+                                            textStyle: theme.textTheme.bodyLarge,
+                                          ),
                                         ),
                                       ActionChip(
                                         avatar: const Icon(Icons.add),
                                         label: const Text('Add Participant'),
                                         onPressed: () => _addParticipant(group.groupId),
+                                        backgroundColor: theme.colorScheme.surfaceVariant ?? Colors.grey[200],
+                                        labelStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface),
                                       ),
                                     ],
                                   ),
@@ -954,6 +896,57 @@ class _GroupsScreenState extends State<GroupsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class GroupParticipantsScreen extends StatefulWidget {
+  final Group group;
+  final String eventId;
+  const GroupParticipantsScreen({Key? key, required this.group, required this.eventId}) : super(key: key);
+
+  @override
+  State<GroupParticipantsScreen> createState() => _GroupParticipantsScreenState();
+}
+
+class _GroupParticipantsScreenState extends State<GroupParticipantsScreen> {
+  late List<String> participantIds;
+
+  @override
+  void initState() {
+    super.initState();
+    participantIds = List<String>.from(widget.group.participantIds);
+  }
+
+  Future<void> _removeParticipant(String participantId) async {
+    setState(() {
+      participantIds.remove(participantId);
+    });
+    final groupRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/groups/${widget.group.groupId}');
+    await groupRef.update({'participantIds': participantIds});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Participants of ${widget.group.groupName}'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: participantIds.map((id) => Card(
+          child: ListTile(
+            leading: Icon(Icons.person, color: theme.colorScheme.primary),
+            title: Text(id, style: theme.textTheme.titleMedium),
+            trailing: IconButton(
+              icon: Icon(Icons.close, color: theme.colorScheme.error),
+              tooltip: 'Remove from group',
+              onPressed: () => _removeParticipant(id),
+            ),
+          ),
+        )).toList(),
       ),
     );
   }

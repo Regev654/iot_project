@@ -9,6 +9,7 @@ import '../models/participant.dart';
 import '../utils/csv_parser.dart';
 import 'event_stats_screen.dart';
 import 'groups_screen.dart';
+import 'item_edit_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
@@ -31,6 +32,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // Remove textToPrint field and editing logic
   // Add default items button and dialog
   Map<String, int> _defaultItems = {};
+  bool _showDefaultItems = true;
 
   @override
   void initState() {
@@ -84,80 +86,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
-  Future<void> _editDefaultItemsDialog() async {
-    final items = Map<String, int>.from(_defaultItems);
-    final nameController = TextEditingController();
-    final tokensController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text('Edit Default Items'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ...items.entries.map((entry) => ListTile(
-                    title: Text(entry.key),
-                    subtitle: Text('Max Tokens: ${entry.value}'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () {
-                        setState(() {
-                          items.remove(entry.key);
-                        });
-                      },
-                    ),
-                    onTap: () {
-                      nameController.text = entry.key;
-                      tokensController.text = entry.value.toString();
-                    },
-                  )),
-              Divider(),
-              TextField(
-                controller: nameController,
-                decoration: InputDecoration(labelText: 'Item Name'),
-              ),
-              TextField(
-                controller: tokensController,
-                decoration: InputDecoration(labelText: 'Max Tokens'),
-                keyboardType: TextInputType.number,
-              ),
-              SizedBox(height: 8),
-              ElevatedButton(
-                onPressed: () {
-                  final name = nameController.text.trim();
-                  final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
-                  if (name.isNotEmpty && tokens > 0) {
-                    setState(() {
-                      items[name] = tokens;
-                      nameController.clear();
-                      tokensController.clear();
-                    });
-                  }
-                },
-                child: Text('Add/Update Item'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                await _eventRef.child('defaultItems').set(items);
-                setState(() {
-                  _defaultItems = items;
-                });
-                Navigator.pop(context);
-              },
-              child: Text('Save'),
-            ),
-          ],
+  Future<void> _editDefaultItemsScreen() async {
+    final result = await Navigator.push<Map<String, int>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ItemEditScreen(
+          initialItems: _defaultItems,
+          title: 'Edit Default Items',
         ),
       ),
     );
+    if (result != null) {
+      await _eventRef.child('defaultItems').set(result);
+      setState(() {
+        _defaultItems = result;
+      });
+    }
   }
 
   Future<void> _makeLiveEvent() async {
@@ -176,7 +120,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         // Format: { id: <eventId>, items: {itemName: maxTokens, ...} }
         await FirebaseDatabase.instance.ref().child('LiveEventV3').set({
           'id': widget.event.eventId,
-          'items': _defaultItems,
+          'items': _showDefaultItems ? _defaultItems : {},
         });
         setState(() => _isLiveEvent = true);
         if (mounted) {
@@ -282,6 +226,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         );
       }
     }
+  }
+
+  int getActiveUsers() {
+    return _participants.values.where((p) => p.items.values.any((item) => (item['usedTokens'] ?? 0) > 0)).length;
   }
 
   @override
@@ -464,42 +412,106 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
               ),
               const SizedBox(height: 24),
               Card(
+                color: Colors.white,
                 elevation: 2,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      Row(
+                      Column(
                         children: [
-                          Text(
-                            'Default Items',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: Icon(Icons.edit),
-                            color: theme.colorScheme.primary,
-                            onPressed: _editDefaultItemsDialog,
-                          ),
+                          Icon(Icons.people, color: theme.colorScheme.primary, size: 28),
+                          SizedBox(height: 4),
+                          Text('${_participants.length}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 2),
+                          Text('Total Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      if (_defaultItems.isNotEmpty)
-                        Wrap(
-                          spacing: 8,
-                          children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
+                      SizedBox(width: 16),
+                      Column(
+                        children: [
+                          Icon(Icons.person, color: theme.colorScheme.secondary, size: 28),
+                          SizedBox(height: 4),
+                          Text('${getActiveUsers()}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 2),
+                          Text('Active Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                        ],
+                      ),
+                      if (_participants.isNotEmpty) ...[
+                        SizedBox(width: 16),
+                        Column(
+                          children: [
+                            Icon(Icons.percent, color: theme.colorScheme.tertiary, size: 28),
+                            SizedBox(height: 4),
+                            Text('(${(getActiveUsers() / _participants.length * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary, fontWeight: FontWeight.bold)),
+                            SizedBox(height: 2),
+                            Text('Active %', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                          ],
                         ),
+                      ],
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 24),
+              Card(
+                color: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Switch(
+                            value: _showDefaultItems,
+                            onChanged: (val) {
+                              setState(() {
+                                _showDefaultItems = val;
+                              });
+                            },
+                            activeColor: theme.colorScheme.primary,
+                          ),
+                          Text('Add default items', style: theme.textTheme.titleMedium),
+                        ],
+                      ),
+                      if (_showDefaultItems) ...[
+                        Row(
+                          children: [
+                            Text(
+                              'Default Items',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: Icon(Icons.edit),
+                              color: theme.colorScheme.primary,
+                              onPressed: _editDefaultItemsScreen,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (_defaultItems.isNotEmpty)
+                          Wrap(
+                            spacing: 8,
+                            children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(
@@ -518,44 +530,28 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               color: theme.colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
-                          ),
-                          const Spacer(),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                '${_participants.length} Total',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              if (_participants.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  '${_participants.values.where((p) => p.items.isNotEmpty).length} Active (${((_participants.values.where((p) => p.items.isNotEmpty).length / _participants.length) * 100).toStringAsFixed(1)}%)',
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    color: theme.colorScheme.secondary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
+                          )
                         ],
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search participants...',
-                          prefixIcon: const Icon(Icons.search),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _searchController,
+                              decoration: InputDecoration(
+                                hintText: 'Search participants...',
+                                prefixIcon: const Icon(Icons.search),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onChanged: (value) {
+                                setState(() {});
+                              },
+                            ),
                           ),
-                        ),
-                        onChanged: (value) {
-                          setState(() {});
-                        },
+                        ],
                       ),
                       const SizedBox(height: 16),
                       ..._participants.values
@@ -571,78 +567,68 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
                               ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              child: ExpansionTile(
+                                title: Row(
                                   children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 12,
-                                            vertical: 6,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: theme.colorScheme.primary.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(20),
-                                          ),
-                                          child: Text(
-                                            participant.id,
-                                            style: TextStyle(
-                                              color: theme.colorScheme.primary,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        participant.id,
+                                        style: TextStyle(
+                                          color: theme.colorScheme.primary,
+                                          fontWeight: FontWeight.bold,
                                         ),
-                                        const Spacer(),
-                                      ],
+                                      ),
                                     ),
-                                    const SizedBox(height: 8),
-                                    ExpansionTile(
-                                      title: Text('Items'),
-                                      children: participant.items.entries.map((entry) {
-                                        final itemName = entry.key;
-                                        final maxTokens = entry.value['maxTokens'] ?? 0;
-                                        final usedTokens = entry.value['usedTokens'] ?? 0;
-                                        final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
-                                        return ListTile(
-                                          title: Text(itemName),
-                                          subtitle: LinearProgressIndicator(
-                                            value: usagePercentage / 100,
-                                            backgroundColor: Colors.grey[200],
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              usagePercentage > 80
-                                                  ? Colors.red
-                                                  : usagePercentage > 50
-                                                      ? Colors.orange
-                                                      : Colors.green,
-                                            ),
-                                            minHeight: 8,
-                                          ),
-                                          trailing: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              IconButton(
-                                                icon: Icon(Icons.remove),
-                                                onPressed: usedTokens > 0
-                                                    ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
-                                                    : null,
-                                              ),
-                                              Text('$usedTokens/$maxTokens'),
-                                              IconButton(
-                                                icon: Icon(Icons.add),
-                                                onPressed: usedTokens < maxTokens
-                                                    ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
-                                                    : null,
-                                              ),
-                                            ],
-                                          ),
-                                        );
-                                      }).toList(),
-                                    ),
+                                    const Spacer(),
                                   ],
                                 ),
+                                children: participant.items.entries.map((entry) {
+                                  final itemName = entry.key;
+                                  final maxTokens = entry.value['maxTokens'] ?? 0;
+                                  final usedTokens = entry.value['usedTokens'] ?? 0;
+                                  final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
+                                  return ListTile(
+                                    title: Text(itemName),
+                                    subtitle: LinearProgressIndicator(
+                                      value: usagePercentage / 100,
+                                      backgroundColor: Colors.grey[200],
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        usagePercentage > 80
+                                            ? Colors.red
+                                            : usagePercentage > 50
+                                                ? Colors.orange
+                                                : Colors.green,
+                                      ),
+                                      minHeight: 8,
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(Icons.remove),
+                                          onPressed: usedTokens > 0
+                                              ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
+                                              : null,
+                                        ),
+                                        Text('$usedTokens/$maxTokens'),
+                                        IconButton(
+                                          icon: Icon(Icons.add),
+                                          onPressed: usedTokens < maxTokens
+                                              ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
+                                              : null,
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             );
                           }).toList(),
@@ -650,7 +636,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Text(
-                            'Use search to find more participants',
+                            'There are more than 10 participants. Use search to find more participants',
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontStyle: FontStyle.italic,
