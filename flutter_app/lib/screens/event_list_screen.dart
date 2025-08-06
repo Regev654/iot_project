@@ -150,7 +150,6 @@ class _EventListScreenState extends State<EventListScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Events'),
@@ -159,186 +158,205 @@ class _EventListScreenState extends State<EventListScreen> {
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              theme.colorScheme.primary.withOpacity(0.1),
-              theme.colorScheme.surface,
-            ],
-          ),
-        ),
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : _error.isNotEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: theme.colorScheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error',
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            color: theme.colorScheme.error,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _error,
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  )
-                : _events.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(24),
-                              decoration: BoxDecoration(
-                                color: theme.colorScheme.primary.withOpacity(0.1),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.event_busy,
+      body: Column(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.1),
+                    theme.colorScheme.surface,
+                  ],
+                ),
+              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error.isNotEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
                                 size: 64,
-                                color: theme.colorScheme.primary,
+                                color: theme.colorScheme.error,
                               ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              'No Events Yet',
-                              style: theme.textTheme.headlineSmall?.copyWith(
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.bold,
+                              const SizedBox(height: 16),
+                              Text(
+                                'Error',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: theme.colorScheme.error,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Add your first event to get started',
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                              const SizedBox(height: 8),
+                              Text(
+                                _error,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                ),
+                                textAlign: TextAlign.center,
                               ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _events.length,
-                        itemBuilder: (context, index) {
-                          final event = _events[index];
-                          return Card(
-                            elevation: 4,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => EventDetailScreen(event: event),
+                            ],
+                          ),
+                        )
+                      : _events.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.event_busy,
+                                      size: 64,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    'No Events Yet',
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Add your first event to get started',
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _events.length,
+                              itemBuilder: (context, index) {
+                                final event = _events[index];
+                                return Card(
+                                  elevation: 4,
+                                  margin: const EdgeInsets.only(bottom: 16),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(16),
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => EventDetailScreen(event: event),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(16),
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            theme.colorScheme.primary.withOpacity(0.1),
+                                            theme.colorScheme.surface,
+                                          ],
+                                        ),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.all(12),
+                                                decoration: BoxDecoration(
+                                                  color: theme.colorScheme.primary.withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Icon(
+                                                  Icons.event,
+                                                  color: theme.colorScheme.primary,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      event.eventTitle,
+                                                      style: theme.textTheme.titleLarge?.copyWith(
+                                                        color: theme.colorScheme.primary,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                    if (event.eventId == _liveEventId)
+                                                      Container(
+                                                        margin: const EdgeInsets.only(top: 4),
+                                                        padding: const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.green.withOpacity(0.1),
+                                                          borderRadius: BorderRadius.circular(12),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons.live_tv,
+                                                              size: 16,
+                                                              color: Colors.green,
+                                                            ),
+                                                            const SizedBox(width: 4),
+                                                            Text(
+                                                              'Live Event',
+                                                              style: TextStyle(
+                                                                color: Colors.green,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ),
                                 );
                               },
-                              child: Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(16),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      theme.colorScheme.primary.withOpacity(0.1),
-                                      theme.colorScheme.surface,
-                                    ],
-                                  ),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: theme.colorScheme.primary.withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Icon(
-                                            Icons.event,
-                                            color: theme.colorScheme.primary,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                event.eventTitle,
-                                                style: theme.textTheme.titleLarge?.copyWith(
-                                                  color: theme.colorScheme.primary,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              if (event.eventId == _liveEventId)
-                                                Container(
-                                                  margin: const EdgeInsets.only(top: 4),
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 4,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: Colors.green.withOpacity(0.1),
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        Icons.live_tv,
-                                                        size: 16,
-                                                        color: Colors.green,
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                      Text(
-                                                        'Live Event',
-                                                        style: TextStyle(
-                                                          color: Colors.green,
-                                                          fontWeight: FontWeight.bold,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
                             ),
-                          );
-                        },
-                      ),
+            ),
+          ),
+          // Subtle build number at the bottom
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Build 3.0.1',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addEvent,

@@ -92,10 +92,6 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
           final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
           await eventRef.set(items);
 
-          // Also save to LiveEventsV3 if the event is live
-          final liveEventRef = FirebaseDatabase.instance.ref().child('LiveEventsV3/${widget.eventId}/defaultItems');
-          await liveEventRef.set(items);
-
           // Don't update participants for default items
 
           if (mounted) {
@@ -154,10 +150,6 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
         await eventRef.child(itemName).set(maxTokens);
         
-        // Also save to LiveEventsV3 if the event is live
-        final liveEventRef = FirebaseDatabase.instance.ref().child('LiveEventsV3/${widget.eventId}/defaultItems');
-        await liveEventRef.child(itemName).set(maxTokens);
-        
         // Don't update participants for default items
       } else if (widget.groupId != null) {
         // Save to group items
@@ -187,10 +179,6 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         // Remove from default items in the event
         final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
         await eventRef.child(itemName).remove();
-        
-        // Also remove from LiveEventsV3 if the event is live
-        final liveEventRef = FirebaseDatabase.instance.ref().child('LiveEventsV3/${widget.eventId}/defaultItems');
-        await liveEventRef.child(itemName).remove();
         
         // Don't update participants for default items
       } else if (widget.groupId != null) {

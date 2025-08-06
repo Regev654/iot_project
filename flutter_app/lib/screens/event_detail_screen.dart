@@ -129,10 +129,10 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         }
       } else {
         // Start live event
-        // Format: { id: <eventId>, items: {itemName: maxTokens, ...} }
+        // Format: { id: <eventId>, defaultItems: {itemName: maxTokens, ...} }
         await FirebaseDatabase.instance.ref().child('LiveEventV3').set({
           'id': widget.event.eventId,
-          'items': _showDefaultItems ? _defaultItems : {},
+          'defaultItems': _showDefaultItems ? _defaultItems : {},
         });
         setState(() => _isLiveEvent = true);
         if (mounted) {
