@@ -92,6 +92,9 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
           final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
           await eventRef.set(items);
 
+          // Update LiveEventV3 if this event is currently live
+          await _updateLiveEventDefaultItems();
+
           // Don't update participants for default items
 
           if (mounted) {
@@ -141,6 +144,23 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
     }
   }
 
+  Future<void> _updateLiveEventDefaultItems() async {
+    try {
+      // Check if this event is currently live
+      final liveEventSnapshot = await FirebaseDatabase.instance.ref().child('LiveEventV3').get();
+      if (liveEventSnapshot.exists) {
+        final liveEventData = liveEventSnapshot.value as Map<dynamic, dynamic>?;
+        if (liveEventData != null && liveEventData['id'] == widget.eventId) {
+          // This event is live, update the defaultItems in LiveEventV3
+          await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(items);
+        }
+      }
+    } catch (e) {
+      print('Error updating live event default items: $e');
+      // Don't throw here as this is not critical for the main save operation
+    }
+  }
+
   Future<void> _saveItemToFirebase(String itemName, int maxTokens) async {
     if (widget.eventId == null) return;
 
@@ -149,6 +169,9 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         // Save to default items in the event
         final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
         await eventRef.child(itemName).set(maxTokens);
+        
+        // Update LiveEventV3 if this event is currently live
+        await _updateLiveEventDefaultItems();
         
         // Don't update participants for default items
       } else if (widget.groupId != null) {
@@ -179,6 +202,9 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         // Remove from default items in the event
         final eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/defaultItems');
         await eventRef.child(itemName).remove();
+        
+        // Update LiveEventV3 if this event is currently live
+        await _updateLiveEventDefaultItems();
         
         // Don't update participants for default items
       } else if (widget.groupId != null) {

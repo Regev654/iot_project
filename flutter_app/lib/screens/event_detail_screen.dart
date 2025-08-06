@@ -113,6 +113,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       setState(() {
         _defaultItems = result;
       });
+      // Update LiveEventV3 if this event is currently live
+      await _updateLiveEventDefaultItems();
     }
   }
 
@@ -162,6 +164,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error checking live status: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateLiveEventDefaultItems() async {
+    if (!_isLiveEvent) return;
+    
+    try {
+      await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(
+        _showDefaultItems ? _defaultItems : {},
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating live event default items: $e')),
         );
       }
     }
@@ -490,6 +508,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                               setState(() {
                                 _showDefaultItems = val;
                               });
+                              _updateLiveEventDefaultItems();
                             },
                             activeColor: theme.colorScheme.primary,
                           ),

@@ -18,6 +18,11 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
   StreamSubscription? _participantsSubscription;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
+  // Consistent rounding function for all percentages
+  double _roundPercentage(double percentage) {
+    return (percentage * 10).round() / 10; // Round to 1 decimal place
+  }
+
   @override
   void initState() {
     super.initState();
@@ -62,7 +67,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
       allItemNames.addAll(p.items.keys);
     }
     // Per-item statistics
-    final Map<String, Map<String, int>> itemStats = {};
+    final Map<String, Map<String, dynamic>> itemStats = {};
     for (final itemName in allItemNames) {
       int total = 0;
       int used = 0;
@@ -72,26 +77,29 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
         total += maxT;
         used += usedT;
       }
+      final rawPercentage = total > 0 ? (used / total) * 100 : 0.0;
       itemStats[itemName] = {
         'total': total,
         'used': used,
         'remaining': total - used,
-        'usagePct': total > 0 ? ((used / total) * 100).round() : 0,
+        'usagePct': _roundPercentage(rawPercentage),
       };
     }
     // Combined totals
     int combinedTotal = 0;
     int combinedUsed = 0;
     for (final stats in itemStats.values) {
-      combinedTotal += stats['total'] ?? 0;
-      combinedUsed += stats['used'] ?? 0;
+      combinedTotal += (stats['total'] ?? 0) as int;
+      combinedUsed += (stats['used'] ?? 0) as int;
     }
     final combinedRemaining = combinedTotal - combinedUsed;
-    final combinedUsagePct = combinedTotal > 0 ? (combinedUsed / combinedTotal * 100) : 0;
+    final rawCombinedPercentage = combinedTotal > 0 ? (combinedUsed / combinedTotal * 100) : 0.0;
+    final combinedUsagePct = _roundPercentage(rawCombinedPercentage);
     // User stats
     final totalUsers = participants.length;
     final activeUsers = participants.where((p) => p.items.values.any((item) => (item['usedTokens'] ?? 0) > 0)).length;
-    final activePct = totalUsers > 0 ? (activeUsers / totalUsers * 100) : 0;
+    final rawActivePercentage = totalUsers > 0 ? (activeUsers / totalUsers * 100) : 0.0;
+    final activePct = _roundPercentage(rawActivePercentage);
     return Scaffold(
       appBar: AppBar(
         title: Text('Event Dashboard'),
@@ -220,26 +228,26 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                           ),
                         ),
                         SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(child: _statTile('Total', stats['total'] ?? 0, theme)),
-                            Expanded(child: _statTile('Used', stats['used'] ?? 0, theme)),
-                            Expanded(child: _statTile('Remaining', stats['remaining'] ?? 0, theme)),
-                          ],
-                        ),
+                                                 Row(
+                           children: [
+                             Expanded(child: _statTile('Total', (stats['total'] ?? 0) as int, theme)),
+                             Expanded(child: _statTile('Used', (stats['used'] ?? 0) as int, theme)),
+                             Expanded(child: _statTile('Remaining', (stats['remaining'] ?? 0) as int, theme)),
+                           ],
+                         ),
                         SizedBox(height: 8),
                         LinearProgressIndicator(
-                          value: (stats['usagePct'] ?? 0) / 100,
+                          value: ((stats['usagePct'] ?? 0.0) as double) / 100,
                           backgroundColor: Colors.grey[200],
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            (stats['usagePct'] ?? 0) > 80 ? Colors.red : Colors.green,
+                            ((stats['usagePct'] ?? 0.0) as double) > 80 ? Colors.red : Colors.green,
                           ),
                         ),
                         SizedBox(height: 4),
                         Text(
-                          '${stats['usagePct'] ?? 0}% Used',
+                          '${((stats['usagePct'] ?? 0.0) as double).toStringAsFixed(1)}% Used',
                           style: TextStyle(
-                            color: (stats['usagePct'] ?? 0) > 80 ? Colors.red : Colors.green,
+                            color: ((stats['usagePct'] ?? 0.0) as double) > 80 ? Colors.red : Colors.green,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

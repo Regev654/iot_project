@@ -5,14 +5,12 @@ import 'participant.dart';
 class Event {
   final String eventId;
   final String eventTitle;
-  final String textToPrint;
   final Map<String, Group> groups;
   final Map<String, Participant> participants;
 
   Event({
     required this.eventId,
     required this.eventTitle,
-    required this.textToPrint,
     Map<String, Group>? groups,
     Map<String, Participant>? participants,
   }) : groups = groups ?? {},
@@ -48,7 +46,6 @@ class Event {
     return Event(
       eventId: json['ID'] as String,
       eventTitle: json['eventTitle'] as String,
-      textToPrint: json['textToPrint'] as String? ?? '',
       groups: groupsMap,
       participants: participantsMap,
     );
@@ -75,7 +72,6 @@ class Event {
     return Event(
       eventId: snapshot.key!,
       eventTitle: data['eventTitle'] ?? '',
-      textToPrint: data['textToPrint'] ?? '',
       groups: groups,
     );
   }
@@ -83,7 +79,6 @@ class Event {
   Map<String, dynamic> toMap() {
     return {
       'eventTitle': eventTitle,
-      'textToPrint': textToPrint,
       'Groups': Map.fromEntries(
         groups.entries.map((e) => MapEntry(e.key, e.value.toMap())),
       ),
@@ -102,7 +97,6 @@ class Event {
     return {
       'ID': eventId,
       'eventTitle': eventTitle,
-      'textToPrint': textToPrint,
       'Groups': Map.fromEntries(
         groups.entries.map((e) => MapEntry(e.key, e.value.toMap())),
       ),
