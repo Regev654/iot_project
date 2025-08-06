@@ -245,23 +245,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
         // Add to event's Participants node
         final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
-        // Build items from all groups this participant is in
-        final allGroups = _groups.values.where((g) => g.participantIds.contains(result) || g.groupId == groupId);
-        final items = <String, Map<String, int>>{};
-        for (final g in allGroups) {
-          g.items.forEach((itemName, itemData) {
-            if (isValidFirebaseKey(itemName)) {
-              items[itemName] = {
-                'maxTokens': (items[itemName]?['maxTokens'] ?? 0) + (itemData['maxTokens'] ?? 0),
-                'usedTokens': 0,
-              };
-            }
-          });
-        }
-        await participantsRef.child(result).set({
-          'ID': result,
-          'items': items,
-        });
+        
+        // Update the participant's items to include all groups they're in
+        await _updateParticipantItems(result);
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -350,30 +336,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
             print('CSV upload: Skipping empty participantId');
             continue;
           }
-          // Calculate new maxTokens as sum of all group amounts for this participant
-          int totalTokens = 0;
-          for (final g in _groups.values) {
-            if (g.participantIds.contains(participantId)) {
-              totalTokens += g.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
-            }
-          }
-          // Also add the current group if not yet in _groups (for new group)
-          if (!(_groups[groupId]?.participantIds.contains(participantId) ?? false)) {
-            totalTokens += group.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
-          }
-          batch[participantId] = {
-            'ID': participantId,
-            'items': [
-              {widget.event.textToPrint: {'maxTokens': totalTokens, 'usedTokens': 0}}
-            ],
-          };
-        }
-        print('Batch keys: ${batch.keys.toList()}');
-        if (batch.keys.any((k) => k.isEmpty)) {
-          throw Exception('Batch contains empty participant ID');
-        }
-        if (batch.isNotEmpty) {
-          await participantsRef.update(batch);
+          
+          // Update the participant's items to include all groups they're in
+          await _updateParticipantItems(participantId);
         }
 
         if (mounted) {
@@ -411,6 +376,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
       await groupRef.update({
         'participantIds': updatedParticipants,
       });
+
+      // Update the participant's items to reflect their new group membership
+      await _updateParticipantItems(participantId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -466,40 +434,51 @@ class _GroupsScreenState extends State<GroupsScreen> {
       // Delete the group first
       await _groupsRef.child(groupId).remove();
 
-      // Update maxTokens for all participants in the deleted group
+      // Update participants by subtracting the group's tokens
       final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
       final batch = <String, Map<String, dynamic>>{};
+      final participantsToRemove = <String>[];
 
       for (final participantId in participantsToUpdate) {
-        // Calculate new maxTokens by summing amounts from remaining groups
-        int totalTokens = 0;
-        for (final group in _groups.values) {
-          if (group.groupId != groupId && group.participantIds.contains(participantId)) {
-            totalTokens += group.items.values.fold(0, (sum, item) => sum + (item['maxTokens'] ?? 0));
-          }
-        }
-
         // Get current participant data
         final participantSnapshot = await participantsRef.child(participantId).get();
-        if (participantSnapshot.exists) {
-          final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
-          final items = participantData['items'] as List<dynamic>? ?? [];
-          // Find the item for this event's textToPrint
-          int usedTokens = 0;
-          int idx = items.indexWhere((i) => i.containsKey(widget.event.textToPrint));
-          if (idx != -1) {
-            usedTokens = items[idx][widget.event.textToPrint]['usedTokens'] ?? 0;
-            // Update the item
-            items[idx][widget.event.textToPrint] = {
-              'maxTokens': totalTokens,
-              'usedTokens': usedTokens > totalTokens ? totalTokens : usedTokens,
+        if (!participantSnapshot.exists) continue;
+        
+        final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+        final currentItems = participantData['items'] as Map<dynamic, dynamic>? ?? {};
+        
+        // Subtract the group's tokens from each item
+        final updatedItems = <String, Map<String, int>>{};
+        currentItems.forEach((itemName, itemData) {
+          final itemMap = itemData as Map<dynamic, dynamic>;
+          final currentMaxTokens = itemMap['maxTokens'] ?? 0;
+          final currentUsedTokens = itemMap['usedTokens'] ?? 0;
+          
+          // Find how many tokens this group contributed to this item
+          final groupItemData = groupToDelete.items[itemName.toString()];
+          final groupTokens = groupItemData?['maxTokens'] ?? 0;
+          
+          // Subtract the group's tokens
+          final newMaxTokens = currentMaxTokens - groupTokens;
+          
+          // Only keep the item if it still has tokens
+          if (newMaxTokens > 0) {
+            updatedItems[itemName.toString()] = {
+              'maxTokens': newMaxTokens,
+              'usedTokens': currentUsedTokens > newMaxTokens ? newMaxTokens : currentUsedTokens,
             };
-          } else {
-            items.add({widget.event.textToPrint: {'maxTokens': totalTokens, 'usedTokens': 0}});
           }
+          // If newMaxTokens <= 0, the item is removed entirely
+        });
+        
+        // If participant has no items left, mark for removal
+        if (updatedItems.isEmpty) {
+          participantsToRemove.add(participantId);
+        } else {
+          // Update the participant with remaining items
           batch[participantId] = {
             'ID': participantId,
-            'items': items,
+            'items': updatedItems,
           };
         }
       }
@@ -508,10 +487,21 @@ class _GroupsScreenState extends State<GroupsScreen> {
       if (batch.isNotEmpty) {
         await participantsRef.update(batch);
       }
+      
+      // Remove participants with no items
+      if (participantsToRemove.isNotEmpty) {
+        for (final participantId in participantsToRemove) {
+          await participantsRef.child(participantId).remove();
+        }
+      }
 
       if (mounted) {
+        String message = 'Group deleted';
+        if (participantsToRemove.isNotEmpty) {
+          message += ' and ${participantsToRemove.length} participant(s) removed (no items left)';
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Group deleted and participant tokens updated')),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
@@ -562,25 +552,101 @@ class _GroupsScreenState extends State<GroupsScreen> {
   // Add this helper function to update all participants' items after group items change
   Future<void> _updateAllParticipantsForEvent() async {
     final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
-    // Gather all group items and participantIds
-    final Map<String, Map<String, int>> participantItems = {};
-    for (final group in _groups.values) {
-      for (final pid in group.participantIds) {
-        participantItems.putIfAbsent(pid, () => {});
-        for (final entry in group.items.entries) {
-          final itemName = entry.key;
-          final maxTokens = entry.value['maxTokens'] ?? 0;
-          participantItems[pid]![itemName] = (participantItems[pid]![itemName] ?? 0) + maxTokens;
+    
+    try {
+      // Get all participants first to preserve existing usedTokens
+      final participantsSnapshot = await participantsRef.get();
+      if (!participantsSnapshot.exists) return;
+
+      final participantsData = participantsSnapshot.value as Map<dynamic, dynamic>;
+      final batch = <String, Map<String, dynamic>>{};
+
+      // Gather all group items and participantIds
+      final Map<String, Map<String, int>> participantItems = {};
+      for (final group in _groups.values) {
+        for (final pid in group.participantIds) {
+          participantItems.putIfAbsent(pid, () => {});
+          for (final entry in group.items.entries) {
+            final itemName = entry.key;
+            final maxTokens = entry.value['maxTokens'] ?? 0;
+            participantItems[pid]![itemName] = (participantItems[pid]![itemName] ?? 0) + maxTokens;
+          }
         }
       }
+
+      // Update each participant's items while preserving usedTokens
+      for (final pid in participantItems.keys) {
+        final currentParticipantData = participantsData[pid] as Map<dynamic, dynamic>?;
+        final currentItems = currentParticipantData?['items'] as Map<dynamic, dynamic>? ?? {};
+        
+        final itemsMap = <String, Map<String, int>>{};
+        participantItems[pid]!.forEach((itemName, maxTokens) {
+          // Preserve existing usedTokens if available
+          final currentUsedTokens = currentItems[itemName]?['usedTokens'] ?? 0;
+          itemsMap[itemName] = {
+            'maxTokens': maxTokens,
+            'usedTokens': currentUsedTokens > maxTokens ? maxTokens : currentUsedTokens,
+          };
+        });
+
+        batch[pid] = {
+          'ID': pid,
+          'items': itemsMap,
+        };
+      }
+
+      // Update all participants in a single batch operation
+      if (batch.isNotEmpty) {
+        await participantsRef.update(batch);
+      }
+    } catch (e) {
+      print('Error updating participants: $e');
+      rethrow;
     }
-    // Update each participant's items
-    for (final pid in participantItems.keys) {
-      final itemsMap = <String, Map<String, int>>{};
-      participantItems[pid]!.forEach((itemName, maxTokens) {
-        itemsMap[itemName] = {'maxTokens': maxTokens, 'usedTokens': 0};
+  }
+
+  Future<void> _updateParticipantItems(String participantId) async {
+    final participantsRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}/Participants');
+    
+    try {
+      // Calculate items from all groups this participant is in
+      final items = <String, Map<String, int>>{};
+      for (final group in _groups.values) {
+        if (group.participantIds.contains(participantId)) {
+          group.items.forEach((itemName, itemData) {
+            if (isValidFirebaseKey(itemName)) {
+              items[itemName] = {
+                'maxTokens': (items[itemName]?['maxTokens'] ?? 0) + (itemData['maxTokens'] ?? 0),
+                'usedTokens': items[itemName]?['usedTokens'] ?? 0,
+              };
+            }
+          });
+        }
+      }
+
+      // Get current participant data to preserve usedTokens
+      final participantSnapshot = await participantsRef.child(participantId).get();
+      if (participantSnapshot.exists) {
+        final participantData = participantSnapshot.value as Map<dynamic, dynamic>;
+        final currentItems = participantData['items'] as Map<dynamic, dynamic>? ?? {};
+        
+        // Preserve usedTokens for existing items
+        items.forEach((itemName, itemData) {
+          final currentUsedTokens = currentItems[itemName]?['usedTokens'] ?? 0;
+          items[itemName] = {
+            'maxTokens': itemData['maxTokens'] ?? 0,
+            'usedTokens': currentUsedTokens > (itemData['maxTokens'] ?? 0) ? (itemData['maxTokens'] ?? 0) : currentUsedTokens,
+          };
+        });
+      }
+
+      // Update the participant
+      await participantsRef.child(participantId).update({
+        'ID': participantId,
+        'items': items,
       });
-      await participantsRef.child(pid).update({'ID': pid, 'items': itemsMap});
+    } catch (e) {
+      print('Error updating participant items: $e');
     }
   }
 
@@ -591,13 +657,14 @@ class _GroupsScreenState extends State<GroupsScreen> {
         builder: (context) => ItemEditScreen(
           initialItems: group.items.map((k, v) => MapEntry(k, v['maxTokens'] ?? 0)),
           title: 'Edit Items for ${group.groupName}',
+          eventId: widget.event.eventId,
+          isDefaultItems: false,
+          groupId: group.groupId,
         ),
       ),
     );
     if (result != null) {
-      // Convert back to Map<String, Map<String, int>>
-      final items = result.map((k, v) => MapEntry(k, {'maxTokens': v, 'usedTokens': 0}));
-      await _groupsRef.child(group.groupId).update({'items': items});
+      // Items are now saved directly in ItemEditScreen, so we just need to update participants
       await _updateAllParticipantsForEvent();
     }
   }

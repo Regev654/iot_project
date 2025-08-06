@@ -23,6 +23,7 @@ class EventDetailScreen extends StatefulWidget {
 class _EventDetailScreenState extends State<EventDetailScreen> {
   late DatabaseReference _eventRef;
   late StreamSubscription _participantsSubscription;
+  late StreamSubscription _defaultItemsSubscription;
   Map<String, Participant> _participants = {};
   bool _isLoading = true;
   String _error = '';
@@ -40,8 +41,8 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     _eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}');
     _searchController = TextEditingController();
     _setupParticipantsListener();
+    _setupDefaultItemsListener();
     _checkLiveStatus();
-    _loadDefaultItems();
   }
 
   void _setupParticipantsListener() {
@@ -74,16 +75,26 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     });
   }
 
-  Future<void> _loadDefaultItems() async {
-    final snapshot = await _eventRef.child('defaultItems').get();
-    if (snapshot.exists) {
-      final data = snapshot.value as Map?;
-      if (data != null) {
+  void _setupDefaultItemsListener() {
+    _defaultItemsSubscription = _eventRef.child('defaultItems').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map?;
+        if (data != null) {
+          setState(() {
+            _defaultItems = data.map((k, v) => MapEntry(k.toString(), v as int));
+          });
+        }
+      } else {
         setState(() {
-          _defaultItems = data.map((k, v) => MapEntry(k.toString(), v as int));
+          _defaultItems = {};
         });
       }
-    }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    });
   }
 
   Future<void> _editDefaultItemsScreen() async {
@@ -93,11 +104,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         builder: (context) => ItemEditScreen(
           initialItems: _defaultItems,
           title: 'Edit Default Items',
+          eventId: widget.event.eventId,
+          isDefaultItems: true,
         ),
       ),
     );
     if (result != null) {
-      await _eventRef.child('defaultItems').set(result);
       setState(() {
         _defaultItems = result;
       });
@@ -202,6 +214,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   @override
   void dispose() {
     _participantsSubscription.cancel();
+    _defaultItemsSubscription.cancel();
     _searchController.dispose();
     super.dispose();
   }
