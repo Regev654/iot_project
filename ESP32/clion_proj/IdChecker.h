@@ -73,12 +73,20 @@ public:
         if (!lastResult->available()) {
             return;
         }
+
+        handleAvailableResult();
+    }
+
+    void handleAvailableResult()
+    {
         ledIndicator->clear();
 
         Firebase.printf("\nhandle user result, task: %s, payload: ***%s****. ", lastResult->uid().c_str(), lastResult->c_str());
         bool isAuthorised = std::string("null") != lastResult->c_str();
 
-        if(!isAuthorised && firebaseDB->getDefaultAmount() <= 0)
+
+
+        if(!isAuthorised && !firebaseDB->hasDefaultItems())
         {
             ledIndicator->clear();
             ledIndicator->displayUnauthorised();
@@ -87,21 +95,37 @@ public:
             return;
         }
 
-        if(!isAuthorised && firebaseDB->getDefaultAmount() > 0) {
-            Firebase.printf("\nhandle user result, Unauthorised, setting default amount: %d, task: %s, msg: %s, code: %d. ",firebaseDB->getDefaultAmount(), lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
-            User user(lastId, firebaseDB->getDefaultAmount(), "text", 0);
-            int left = getLeftAmount(user);
-            user.increaseUsed(left);
-            firebaseDB->setUser(lastId, user);
-            printAmount(user, left);
-            return;
+        User user;
+        if(!isAuthorised && firebaseDB->hasDefaultItems()) {
+            Firebase.printf("\nhandle user result, Unauthorised, setting default amount, task: %s, msg: %s, code: %d. ", lastResult->uid().c_str(), lastResult->error().message().c_str(), lastResult->error().code());
+            user = User(lastId, firebaseDB->getDefaultItems());
+        }
+        else
+        {
+            user = User(lastResult->c_str());
         }
 
+        Serial.printf("\nparsed user: %s", user.toString().c_str());
+        std::map<string, int> leftItems;
+        bool hasLeft = false;
+        for( const auto& item : user.getItems())
+        {
+            if(item.second.getLeft() <= 0) {
+                continue;
+            }
 
-        User user(lastResult->c_str());
-        int left = getLeftAmount(user);
+            int left = item.second.getLeft();
+            if(left>10) {
+                Serial.printf("\nUser has %d tokens left, setting 1. ", left);
+                left = 1;
+            }
 
-        if(left <= 0)
+            leftItems[item.first] = left;
+            user.increaseUsed(item.first, left);
+            hasLeft = true;
+        }
+
+        if(!hasLeft)
         {
             ledIndicator->clear();
             ledIndicator->displayReachedMax();
@@ -111,8 +135,9 @@ public:
             return;
         }
 
-        firebaseDB->updateUsedTokens(lastId, left);
-        printAmount(user, left);
+        Serial.printf("\nparsed updated user: %s", user.toString().c_str());
+        firebaseDB->updateUserStats(user);
+        printAmount(leftItems);
     }
 
     void onInputError() override
@@ -120,22 +145,12 @@ public:
         ledIndicator->displayError();
     }
 private:
-    int getLeftAmount(const User& user)
-    {
-        int left = user.getMax() - user.getUsed();
-        if(left>10) {
-            Serial.printf("\nUser has %d tokens left, setting 1. ", left);
-            left = 1;
-        }
 
-        return left;
-    }
-
-    void printAmount(const User& user, int amount)
+    void printAmount(const std::map<string, int>& items)
     {
         isRequestPending= false;
         ledIndicator->clear();
-        printer->println(user.getText().c_str(), amount);
+        printer->printItems(items);
         ledIndicator->displaySuccess();
     }
 };

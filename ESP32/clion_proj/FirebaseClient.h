@@ -46,6 +46,7 @@ public:
     }
     String event(){return {};}
     String data(){return {};}
+    String dataPath(){return {};}
 };
 
 class AsyncResult{

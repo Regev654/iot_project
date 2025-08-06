@@ -4,7 +4,6 @@
 #include "stubs.h"
 #include "parameters.h"
 #include "Adafruit_NeoPixel.h"
-#include <cmath>
 
 enum class State
 {
@@ -30,7 +29,7 @@ class LedIndicator
     {
         auto indexDouble = static_cast<double>(index);
         double percent = indexDouble / ROUNDS * PIXELS_COUNT;
-        int intPercent = static_cast<int>(std::round(percent));
+        int intPercent = static_cast<int>(percent + 0.5f);
         if (intPercent < 0 || PIXELS_COUNT < intPercent) {
             intPercent = PIXELS_COUNT;
             Serial.printf("\nError: intPercent out of bounds %d", intPercent);

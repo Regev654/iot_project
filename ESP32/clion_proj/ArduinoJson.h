@@ -2,6 +2,7 @@
 #define IOT_ARDUINOJSON_H
 
 class JsonObject;
+class JsonVariant;
 
 
 class JsonString {
@@ -21,6 +22,10 @@ public:
     MemberProxy& operator=(int value) {
         return *this;
     }
+    MemberProxy& operator=(const JsonVariant& value) {
+        return *this;
+    }
+
     MemberProxy& operator=(const std::string& value) {
         return *this;
     }
@@ -41,9 +46,16 @@ public:
     }
 
     operator JsonObject() const;
+    operator JsonVariant() const;
 
     explicit operator std::string() const {
         return "";
+    }
+
+    template<class T>
+    bool is()
+    {
+        return true;
     }
 
 };
@@ -57,6 +69,15 @@ public:
         return proxy;
     }
 
+    MemberProxy& createNestedObject(const char* key) {
+        static MemberProxy proxy;
+        return proxy;
+    }
+
+    template<class T>
+    T as() const {
+        return T{};
+    }
 
 };
 
@@ -64,13 +85,37 @@ class JsonVariant
 {
 public:
 
-    MemberProxy& operator[](const char* key){
+    void remove(const string& key) {}
+
+    MemberProxy& operator[](const char* key) const{
         static MemberProxy proxy;
         return proxy;
     }
 
 
+    MemberProxy& operator[](const string& key) const{
+        static MemberProxy proxy;
+        return proxy;
+    }
+
+    template<class T>
+    T as() const {
+        return T{};
+    }
+
+    MemberProxy& createNestedObject(const char* key) {
+        static MemberProxy proxy;
+        return proxy;
+    }
+
+    MemberProxy& createNestedObject(string key) {
+        static MemberProxy proxy;
+        return proxy;
+    }
+
 };
+
+
 
 class JsonPair {
 public:
@@ -83,6 +128,11 @@ class JsonObject
 public:
 
     MemberProxy& operator[](const char* key){
+        static MemberProxy proxy;
+        return proxy;
+    }
+
+    MemberProxy& createNestedObject(const char* key) {
         static MemberProxy proxy;
         return proxy;
     }
@@ -111,6 +161,13 @@ public:
 };
 
 MemberProxy::operator JsonObject() const
+{
+    return {};
+}
+
+
+
+MemberProxy::operator JsonVariant() const
 {
     return {};
 }

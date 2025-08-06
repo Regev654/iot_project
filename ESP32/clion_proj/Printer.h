@@ -1,5 +1,7 @@
 #ifndef IOT_PRINTER_H
 #define IOT_PRINTER_H
+
+#include <map>
 #include "stubs.h"
 #include "parameters.h"
 
@@ -9,25 +11,22 @@ public:
     DummySerial(int uart) {}
 
     void begin(int baud, int config, int rxPin, int txPin)
-    {
-        Serial.printf("\nDummySerial started with baud %d on pins RX: %d, TX: %d. ", baud, rxPin, txPin);
-    }
+    {}
 
     void println(const char* str)
-    {
-        Serial.println(str);
-    }
+    {}
 
     void write(const uint8_t* data, size_t size)
-    {
-        Serial.printf("\ncalled write with data: %zu bytes. ", size);
-    }
+    {}
 };
 
 class Printer
 {
+#if USE_PRINTER
     HardwareSerial serial;
-    //DummySerial serial;
+#else
+    DummySerial serial;
+#endif
 public:
     Printer(): serial(PRINTER_UART)
     {};
@@ -39,26 +38,26 @@ public:
         Serial.println("Printer setup finished");
     }
 
-    void println(const char* str, int amount)
+    void printItems(const std::map<string, int>& items)
     {
-        Serial.printf("\nPrinting to printer %d times. ", amount);
+        Serial.printf("\nPrinting to printer %d items", items.size());
 
-        if(!USE_PRINTER)
-        {
+        #if !USE_PRINTER
             Serial.print("\nPrinter is disabled, printing to serial only. ");
-            return;
-        }
+        #endif
+
         setAlignCenter();
         setBigTest();
         setUpsideDownDirection();
 
 
         std:string msg = "\n\n----------------\n";
-        for(int i = 0; i < amount; i++)
-        {
-            msg += str;
-            msg += "\n";
-            msg += "----------------\n";
+        for(const auto& item : items) {
+            for (int i = 0; i < item.second; i++) {
+                msg += item.first;
+                msg += "\n";
+                msg += "----------------\n";
+            }
         }
         msg += "\n\n";
         serial.println(msg.c_str());
@@ -67,8 +66,6 @@ public:
 
 
 private:
-
-
 
     void setBigTest()
     {

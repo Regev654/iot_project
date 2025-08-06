@@ -18,8 +18,7 @@
 
 class FirebaseDB : public IFirebaseDB
 {
-    static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEvent";
-    static constexpr const char* ACTIVE_EVENT_PATH_V2 = "/Test/LiveEvent";
+    static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEventV3";
 
     LedIndicator* ledIndicator;
     SSL_CLIENT ssl_client;
@@ -29,8 +28,7 @@ class FirebaseDB : public IFirebaseDB
     RealtimeDatabase database;
 
 
-    std::string activeEvent;
-    int defaultAmount = 0;
+    ActiveEvent activeEvent;
     AsyncResult activeEventResult;
     bool isSetActiveEvent = false;
     bool hadSetup = false;
@@ -45,17 +43,17 @@ public:
     {
     }
 
-    void setup()
+    void setup() override
     {
         Serial.println("FirebaseDB setup");
         Serial.println("FirebaseDB setup done");
     }
 
-    bool isReady()
+    bool isReady() override
     {
         connectSetup();
 
-        if(!firebase_app.ready() ||  activeEvent.empty()) {
+        if(!firebase_app.ready() ||  !activeEvent.isEventReady()) {
             ledIndicator->displayLoadingFirebase();
         }
 
@@ -69,7 +67,7 @@ public:
         registerActiveEvent();
         checkAsyncResult();
 
-        if(activeEvent.empty())
+        if(!activeEvent.isEventReady())
         {
             return false;
         }
@@ -78,42 +76,41 @@ public:
         return true;
     }
 
-    void onWifiDisconnect()
+    void onWifiDisconnect() override
     {
         if(!isLastReady)
             return;
 
         Serial.print("\nfirebase disconnected due to wifi disconnection. ");
         isLastReady = false;
-        activeEvent = "";
+        activeEvent.reset();
 
     }
 
-    int getDefaultAmount() override
+    bool hasDefaultItems() const override
     {
-        return defaultAmount;
+        return activeEvent.hasDefaultItems();
     }
 
-    std::unique_ptr<IAsyncResult> getUser(const std::string& id)
+    const std::map<std::string, int>& getDefaultItems() const override
+    {
+        return activeEvent.getDefaultItems();
+    }
+
+    std::unique_ptr<IAsyncResult> getUser(const std::string& id) override
     {
         auto databaseResult = std::make_unique<AsyncResultWrap>();
         database.get(fb_client, getUserUrl(id).c_str(), databaseResult->getInternal(), false);
         return databaseResult;
     }
 
-    std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user)
+    std::unique_ptr<IAsyncResult> updateUserStats(const User& user) override
     {
         auto databaseResult = std::make_unique<AsyncResultWrap>();
-        database.set(fb_client, getUserUrl(id).c_str(), user.toObject_t(), databaseResult->getInternal());
+        database.set<object_t>(fb_client, getUserUrl(user.getId()).c_str(), user.toObject_t(), databaseResult->getInternal());
         return databaseResult;
     }
 
-    std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount)
-    {
-        auto databaseResult = std::make_unique<AsyncResultWrap>();
-        database.set<int>(fb_client, getTokensUrl(id).c_str(), amount ,databaseResult->getInternal());
-        return databaseResult;
-    }
 
 private:
     void connectSetup()
@@ -163,12 +160,7 @@ private:
         if(!isSetActiveEvent) {
             Serial.print("\nRegistering active event. ");
             database.setSSEFilters("get,put,patch");
-            if(VERSION < 2) {
-                database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
-            }
-            else {
-                database.get(fb_client, ACTIVE_EVENT_PATH_V2, activeEventResult, true);
-            }
+            database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
             isSetActiveEvent = true;
             Serial.print("\nRegistering active event finished. ");
         }
@@ -195,32 +187,24 @@ private:
             return;
         }
 
-        if(VERSION < 2) {
-            activeEvent = stream.to<const char*>();
-        }
-        else {
-            ActiveEvent event(stream.data().c_str());
-            activeEvent = event.getId();
-            defaultAmount = event.getDefaultAmount();
-        }
 
+        string path = stream.dataPath().c_str();
+        string data = stream.data().c_str();
 
-        if(activeEvent.empty())
+        activeEvent.update(path, data);
+        if(activeEvent.getId().empty())
         {
             Serial.print("\nActive event is empty, skipping update. ");
             return;
         }
-        Serial.printf("\nActive event updated: '%s', default amount '%d'. ", activeEvent.c_str(), defaultAmount);
+
+        Serial.printf("\nActive event updated: '%s'", activeEvent.getId().c_str());
     }
+
 
     std::string getUserUrl(const std::string& id) const
     {
-        return "Events/" + activeEvent + "/Participants/" + id;
-    }
-
-    std::string getTokensUrl(const std::string& id) const
-    {
-        return getUserUrl(id) + "/usedTokens";
+        return "EventsV3/" + activeEvent.getId() + "/Participants/" + id;
     }
 
 

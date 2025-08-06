@@ -12,10 +12,10 @@ public:
     virtual void setup() = 0;
     virtual bool isReady() = 0;
     virtual void onWifiDisconnect() = 0;
-    virtual int getDefaultAmount() = 0;
+    virtual bool hasDefaultItems() const = 0;
+    virtual const std::map<std::string, int>& getDefaultItems() const = 0;
     virtual std::unique_ptr<IAsyncResult> getUser(const std::string& id) = 0;
-    virtual std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) = 0;
-    virtual std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) = 0;
+    virtual std::unique_ptr<IAsyncResult> updateUserStats(const User& user) = 0;
 };
 
 class FirebaseDBMock : public IFirebaseDB
@@ -27,21 +27,26 @@ public:
 
     void onWifiDisconnect() override{}
 
-    int getDefaultAmount() override {return 0;}
+    bool hasDefaultItems() const override
+    {
+        return true;
+    }
+
+    const std::map<std::string, int>& getDefaultItems() const override
+    {
+        static std::map<std::string, int> defaultItems = {{"item1", 10}, {"item2", 20}};
+        return defaultItems;
+    }
 
     std::unique_ptr<IAsyncResult> getUser(const std::string& id) override
     {
         return std::make_unique<UserAsyncResultMock>(id);
     }
 
-    std::unique_ptr<IAsyncResult> setUser(const std::string& id, const User& user) override
-    {
-        return std::make_unique<UserAsyncResultMock>(id);
-    }
 
-    std::unique_ptr<IAsyncResult> updateUsedTokens(const std::string& id, int amount) override
+    std::unique_ptr<IAsyncResult> updateUserStats(const User& user) override
     {
-        return std::make_unique<UserAsyncResultMock>(id);
+        return std::make_unique<UserAsyncResultMock>(user.getId());
     }
 };
 

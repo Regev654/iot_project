@@ -12,10 +12,9 @@ add_executable(iot arduino_proj.cpp
         secrets.h
         FirebaseDB.h
         FirebaseClient.h
-        User.h
         ArduinoJson.h
         WifiConnection.h
         IAsyncResult.h
         ActiveEvent.h
-        UserV3.h
+        User.h
 )
