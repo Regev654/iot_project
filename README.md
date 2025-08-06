@@ -1,6 +1,13 @@
-## XXXXX Project by :  
+## Beer Tokens Project by Regev Avraham, Ido Tausi, Afek Nahum:  
   
 ## Details about the project
+A smart system that identifies users and prints drink vouchers using student IDs and a thermal printer.
+
+### Main features:
+- Scans student ID (magnetic/barcode) for quick user verification
+- Checks voucher eligibility in real-time via a Firestore database
+- Instantly prints a custom voucher with event-specific details
+
  
 ## Folder description :
 * ESP32: source code for the esp side (firmware).
@@ -19,7 +26,8 @@
 
 ## Connection diagram:
 
-## Project Poster:
+## Project Poster: 
+[Click to View Project Poster](https://drive.google.com/file/d/1YdkvTDCYMw81SYFe-Bq8PEXEAAC37gcu/view?usp=sharing)
  
 This project is part of ICST - The Interdisciplinary Center for Smart Technologies, Taub Faculty of Computer Science, Technion
 https://icst.cs.technion.ac.il/
