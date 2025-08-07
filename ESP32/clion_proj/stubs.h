@@ -5,6 +5,7 @@
 
 #include <string>
 
+#define F(x) x
 
 class SerialObj
 {
@@ -24,6 +25,7 @@ unsigned long millis(){return 0;}
 class ESPclass
 {
 public:
+    uint64_t getEfuseMac() { return 0; }
     unsigned int getFreeHeap(){return 0;}
     void restart() {}
 };
@@ -32,11 +34,15 @@ ESPclass ESP;
 
 unsigned int uxTaskGetStackHighWaterMark(void *) {return 0;}
 
+
+
+constexpr int HEX = 0;
 class String
 {
 public:
     const char* c_str(){return "";}
     String(const char *cstr = "") {}
+    String(uint64_t, int) {}
 };
 
 class HardwareSerial

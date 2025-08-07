@@ -15,10 +15,12 @@
 #include "IFirebaseDB.h"
 #include "ActiveEvent.h"
 
+void processDataMock(AsyncResult &aResult){}
 
 class FirebaseDB : public IFirebaseDB
 {
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEventV3";
+    static constexpr const int KEEP_ALIVE_TIMEOUT = 2*1000;
 
     LedIndicator* ledIndicator;
     SSL_CLIENT ssl_client;
@@ -30,10 +32,13 @@ class FirebaseDB : public IFirebaseDB
 
     ActiveEvent activeEvent;
     AsyncResult activeEventResult;
+    AsyncResult keepAliveResult;
     bool isSetActiveEvent = false;
     bool hadSetup = false;
     unsigned long lastTimeTriggered = 0;
+    unsigned long lastKeepAlive = 0;
     bool isLastReady = false;
+
 public:
     explicit FirebaseDB(LedIndicator* ledIndicator)
         :ledIndicator(ledIndicator),
@@ -73,6 +78,7 @@ public:
         }
 
         notifyConnected();
+        sendKeepAlive();
         return true;
     }
 
@@ -166,6 +172,14 @@ private:
         }
     }
 
+    void sendKeepAlive()
+    {
+        if(millis() - lastKeepAlive < KEEP_ALIVE_TIMEOUT)
+            return;
+        lastKeepAlive = millis();
+        database.set(fb_client, getKeepAliveUrl().c_str(), object_t("{ \".sv\": \"timestamp\" }"), keepAliveResult);
+    }
+
     void checkAsyncResult()
     {
         if (!activeEventResult.isResult())
@@ -207,9 +221,16 @@ private:
         return "EventsV3/" + activeEvent.getId() + "/Participants/" + id;
     }
 
+    std::string getKeepAliveUrl() const
+    {
+        std::string deviceId = String((uint32_t)ESP.getEfuseMac(), HEX).c_str();
+        return "/devices/" + deviceId + "/lastSeen";
+    }
 
 
 };
+
+
 
 
 

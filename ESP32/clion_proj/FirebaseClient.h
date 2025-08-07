@@ -51,6 +51,8 @@ public:
 
 class AsyncResult{
 public:
+    bool isEvent(){return false;}
+    bool isDebug(){return false;}
     bool isResult(){return true;}
     bool isError() {return false;}
     bool available(){return true;}
@@ -73,7 +75,7 @@ public:
 
 FirebaseClass Firebase;
 
-
+using AsyncResultCallback = void(*)(AsyncResult&);
 
 class RealtimeDatabase{
 public:
@@ -83,6 +85,9 @@ public:
 
     template<class T>
     void set(AsyncClientClass aClient, const char* path, T data, AsyncResult res){}
+
+    template<class T>
+    void set(AsyncClientClass aClient, const char* path, T data, AsyncResultCallback res){}
 
 
 };
