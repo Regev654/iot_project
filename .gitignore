@@ -17,3 +17,5 @@ ESP32/arduino_proj/FirebaseDB.h
 ESP32/arduino_proj/IAsyncResult.h
 ESP32/arduino_proj/WifiConnection.h
 ESP32/arduino_proj/
+ESP32/python_mock/iot_python_mock/.idea/
+ESP32/python_mock/iot_python_mock/secret.py
