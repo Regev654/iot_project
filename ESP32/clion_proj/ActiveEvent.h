@@ -12,6 +12,8 @@ class ActiveEvent
     bool mHasDefaultItems = false;
     std::string id;
     std::map<string, int> defaultItems;
+    std::string settings;
+
     JsonDocument doc;
 
     void fullUpdate(const char* data){
@@ -23,6 +25,8 @@ class ActiveEvent
     void updateFromJson()
     {
         id = static_cast<std::string>(doc["id"]);
+        settings = static_cast<std::string>(doc["settings"]);
+        Serial.printf("\nActiveEvent ID: %s, Settings: %s", id.c_str(), settings.c_str());
         JsonObject itemsObj = doc["defaultItems"];
         mHasDefaultItems = false;
         defaultItems.clear();
@@ -36,9 +40,20 @@ class ActiveEvent
         }
     }
 
-    void partialUpdate(const string path, const string value) {
+    void mergeObjects(JsonVariant dst, JsonVariant src) {
+        for (JsonPair kv : src.as<JsonObject>()) {
+            if (kv.value().is<JsonObject>() && dst[kv.key().c_str()].is<JsonObject>()) {
+                mergeObjects(dst[kv.key().c_str()], kv.value());
+            } else {
+                dst[kv.key().c_str()] = kv.value();
+            }
+        }
+    }
+
+    void partialUpdate(const string path, const string value, const std::string& methode) {
         JsonDocument patch;
         deserializeJson(patch, value.c_str());
+
 
         size_t slashIndex;
         string remainingPath = path;
@@ -62,14 +77,21 @@ class ActiveEvent
             current.remove(finalKey);
             Serial.printf("\nRemoved key: %s", finalKey.c_str());
         } else {
-            current[finalKey] = patch.as<JsonVariant>();
+            JsonVariant dst = current[finalKey];
+
+            if (methode == "patch" && dst.is<JsonObject>() && patch.is<JsonObject>()) {
+                mergeObjects(dst, patch.as<JsonVariant>());
+            } else {
+                current[finalKey] = patch.as<JsonVariant>();
+            }
+
             Serial.printf("\nSet key: %s to value: %s", finalKey.c_str(), patch.as<std::string>().c_str());
         }
     }
 public:
     ActiveEvent() = default;
 
-    void update(const std::string path, const std::string& value)
+    void update(const std::string path, const std::string& value, const std::string& methode)
     {
         isReady = true;
         if(path=="/")
@@ -78,7 +100,7 @@ public:
         }
         else
         {
-            partialUpdate(path, value);
+            partialUpdate(path, value, methode);
         }
         updateFromJson();
     }
@@ -120,6 +142,11 @@ public:
     const std::map<string, int>& getDefaultItems() const
     {
         return defaultItems;
+    }
+
+    const std::string& getSettings() const
+    {
+        return settings;
     }
 
     std::string toString() const

@@ -14,6 +14,7 @@
 #include <memory>
 #include "IFirebaseDB.h"
 #include "ActiveEvent.h"
+#include "Settings.h"
 
 void processDataMock(AsyncResult &aResult){}
 
@@ -23,6 +24,7 @@ class FirebaseDB : public IFirebaseDB
     static constexpr const int KEEP_ALIVE_TIMEOUT = 2*1000;
 
     LedIndicator* ledIndicator;
+    Settings* settings;
     SSL_CLIENT ssl_client;
     AsyncClientClass fb_client;
     UserAuth user_auth;
@@ -40,8 +42,8 @@ class FirebaseDB : public IFirebaseDB
     bool isLastReady = false;
 
 public:
-    explicit FirebaseDB(LedIndicator* ledIndicator)
-        :ledIndicator(ledIndicator),
+    explicit FirebaseDB(LedIndicator* ledIndicator, Settings* settings)
+        :ledIndicator(ledIndicator), settings(settings),
         fb_client(ssl_client),
         user_auth(FIREBASE_API_KEY, FIREBASE_USER_EMAIL, FIREBASE_USER_PASSWORD)
 
@@ -205,12 +207,13 @@ private:
         string path = stream.dataPath().c_str();
         string data = stream.data().c_str();
 
-        activeEvent.update(path, data);
+        activeEvent.update(path, data, stream.event().c_str());
         if(activeEvent.getId().empty())
         {
             Serial.print("\nActive event is empty, skipping update. ");
             return;
         }
+        settings->updateSettings(activeEvent.getSettings().c_str());
 
         Serial.printf("\nActive event updated: '%s'", activeEvent.getId().c_str());
     }

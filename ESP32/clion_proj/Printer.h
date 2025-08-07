@@ -4,31 +4,51 @@
 #include <map>
 #include "stubs.h"
 #include "parameters.h"
+#include "Settings.h"
 
-class DummySerial
+class SerialWrapper
 {
+    HardwareSerial serial;
+    Settings* settings;
 public:
-    DummySerial(int uart) {}
+    SerialWrapper(int uart, Settings* settings):
+        serial(uart),
+        settings(settings)
+    {}
 
     void begin(int baud, int config, int rxPin, int txPin)
-    {}
+    {
+        serial.begin(baud, config, rxPin, txPin);
+    }
 
     void println(const char* str)
-    {}
+    {
+        if (!settings->isUsePrinter())
+            return;
 
-    void write(const uint8_t* data, size_t size)
-    {}
+        serial.println(str);
+    }
+
+    void write(uint8_t* data, int size)
+    {
+        if (!settings->isUsePrinter())
+            return;
+
+
+        serial.write(data, size);
+    }
+
+    bool isActive()
+    {
+        return settings->isUsePrinter();
+    }
 };
 
 class Printer
 {
-#if USE_PRINTER
-    HardwareSerial serial;
-#else
-    DummySerial serial;
-#endif
+    SerialWrapper serial;
 public:
-    Printer(): serial(PRINTER_UART)
+    Printer(Settings* settings): serial(PRINTER_UART, settings)
     {};
 
     void setup()
@@ -42,9 +62,8 @@ public:
     {
         Serial.printf("\nPrinting to printer %d items", items.size());
 
-        #if !USE_PRINTER
+        if(!serial.isActive())
             Serial.print("\nPrinter is disabled, printing to serial only. ");
-        #endif
 
         setAlignCenter();
         setBigTest();

@@ -58,6 +58,11 @@ public:
         return true;
     }
 
+    template<class T>
+    T as() const {
+        return T{};
+    }
+
 };
 
 class JsonDocument
@@ -73,6 +78,15 @@ public:
         static MemberProxy proxy;
         return proxy;
     }
+    bool containsKey(const char* key) const {
+        return false;
+    }
+
+    template<class T>
+    bool is()
+    {
+        return true;
+    }
 
     template<class T>
     T as() const {
@@ -80,6 +94,9 @@ public:
     }
 
 };
+
+
+class JsonPair;
 
 class JsonVariant
 {
@@ -103,6 +120,12 @@ public:
         return T{};
     }
 
+    template<class T>
+    bool is()
+    {
+        return true;
+    }
+
     MemberProxy& createNestedObject(const char* key) {
         static MemberProxy proxy;
         return proxy;
@@ -116,12 +139,12 @@ public:
 };
 
 
-
 class JsonPair {
 public:
     JsonString key() const {return {};}
     JsonVariant value() const {return {};};
 };
+
 
 class JsonObject
 {

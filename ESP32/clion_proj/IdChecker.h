@@ -13,14 +13,14 @@ class IdChecker : public IdListener
     Printer* printer;
     LedIndicator* ledIndicator;
     IFirebaseDB* firebaseDB;
+    Settings* settings;
     std::unique_ptr<IAsyncResult> lastResult;
     std::string lastId;
     bool isRequestPending = false;
     unsigned long lastRequest = 0;
-    static constexpr int REQUEST_TIMEOUT = 60*1000;
 public:
-    IdChecker(Printer* printer, LedIndicator* ledIndicator, IFirebaseDB* firebaseDB)
-        : printer(printer), ledIndicator(ledIndicator), firebaseDB(firebaseDB)
+    IdChecker(Printer* printer, LedIndicator* ledIndicator, IFirebaseDB* firebaseDB, Settings* settings)
+        : printer(printer), ledIndicator(ledIndicator), firebaseDB(firebaseDB), settings(settings)
     {
     }
 
@@ -44,7 +44,7 @@ public:
     {
         if(isRequestPending)
         {
-            if(millis() - lastRequest > REQUEST_TIMEOUT)
+            if(millis() - lastRequest > settings->getRequestTimeout())
             {
                 Serial.print("\nRequest timeout, resetting. ");
                 isRequestPending = false;
@@ -115,7 +115,7 @@ public:
             }
 
             int left = item.second.getLeft();
-            if(left>10) {
+            if(left > settings->getMaxTokensAtOnce()) {
                 Serial.printf("\nUser has %d tokens left, setting 1. ", left);
                 left = 1;
             }

@@ -12,17 +12,16 @@
 using WiFiManagerCallback = void (*)(WiFiManager*);
 class WifiConnection
 {
-    static constexpr int WIFI_CONNECT_TIMEOUT = 30*1000;
-
     LedIndicator* ledIndicator;
     bool isLastConnected = true;
     bool hasFirstSetup = false;
     WiFiManagerCallback callback;
     int firstDisconnected = 0;
+    Settings* settings;
 
 public:
-    explicit WifiConnection(LedIndicator* ledIndicator, WiFiManagerCallback callback)
-            :ledIndicator(ledIndicator), callback(callback)
+    explicit WifiConnection(LedIndicator* ledIndicator, WiFiManagerCallback callback, Settings* settings)
+            :ledIndicator(ledIndicator), callback(callback), settings(settings)
     {
     }
 
@@ -34,7 +33,7 @@ public:
 
     void firstConnection()
     {
-        bool shouldReconnect = !hasFirstSetup || millis() - firstDisconnected > WIFI_CONNECT_TIMEOUT;
+        bool shouldReconnect = !hasFirstSetup || millis() - firstDisconnected > settings->getWifiReconnectTimeout();
         if(!shouldReconnect && hasFirstSetup)
             return;
 
@@ -42,7 +41,7 @@ public:
         WiFiManager wm;
         wm.setAPCallback(callback);
         Serial.println("\nconnecting using wifiManager");
-        if (!wm.autoConnect(IOT_WIFI_SSID, IOT_WIFI_PASSWORD)) {
+        if (!wm.autoConnect(settings->getWifiSsid(), settings->getWifiPassword())) {
             Serial.println("\nFailed to connect, restarting");
             ESP.restart();
         }

@@ -17,4 +17,6 @@ add_executable(iot arduino_proj.cpp
         IAsyncResult.h
         ActiveEvent.h
         User.h
+        Settings.h
+        Preferences.h
 )

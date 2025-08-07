@@ -19,10 +19,11 @@ void onApStart(WiFiManager* notUsed)
     ledIndicator->displaySearchingWifi();
 }
 
-auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get(),onApStart);
-auto firebaseDB = make_unique<FirebaseDB>(ledIndicator.get());
-auto printer = make_unique<Printer>();
-auto idChecker = make_unique<IdChecker>(printer.get(), ledIndicator.get(), firebaseDB.get());
+auto settings = make_unique<Settings>();
+auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get(),onApStart, settings.get());
+auto firebaseDB = make_unique<FirebaseDB>(ledIndicator.get(), settings.get());
+auto printer = make_unique<Printer>(settings.get());
+auto idChecker = make_unique<IdChecker>(printer.get(), ledIndicator.get(), firebaseDB.get(), settings.get());
 auto magneticReader = make_unique<MagneticReader>(idChecker.get());
 auto barcodeScanner = make_unique<BarcodeScanner>(idChecker.get());
 
@@ -38,6 +39,7 @@ void setup() {
     Serial.println("starting");
 
     ledIndicator->setup();
+    settings->setup();
     printer->setup();
     magneticReader->setUp();
     barcodeScanner->setup();
