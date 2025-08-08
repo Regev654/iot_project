@@ -178,6 +178,50 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
     }
   }
 
+  Future<void> _deleteDevice(String deviceId, String deviceName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Device'),
+        content: Text(
+          'Are you sure you want to delete "$deviceName"? This action cannot be undone.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _devicesRef.child(deviceId).remove();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Device deleted')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting device: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -330,13 +374,6 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                                           ],
                                         ),
                                       ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit),
-                                        onPressed: () {
-                                          _showEditNameDialog(deviceId, deviceName ?? '');
-                                        },
-                                        tooltip: 'Edit Device Name',
-                                      ),
                                       Container(
                                         padding: const EdgeInsets.symmetric(
                                           horizontal: 12,
@@ -360,16 +397,36 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 8),
-                                  Text(
-                                    isConnected 
-                                        ? 'Active'
-                                        : 'Last seen: ${_formatLastSeen(lastSeen)}',
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: isConnected 
-                                          ? Colors.green 
-                                          : theme.colorScheme.onSurface.withOpacity(0.6),
-                                      fontWeight: isConnected ? FontWeight.bold : FontWeight.normal,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          isConnected 
+                                              ? 'Active'
+                                              : 'Last seen: ${_formatLastSeen(lastSeen)}',
+                                          style: theme.textTheme.bodySmall?.copyWith(
+                                            color: isConnected 
+                                                ? Colors.green 
+                                                : theme.colorScheme.onSurface.withOpacity(0.6),
+                                            fontWeight: isConnected ? FontWeight.bold : FontWeight.normal,
+                                          ),
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit),
+                                        onPressed: () {
+                                          _showEditNameDialog(deviceId, deviceName ?? '');
+                                        },
+                                        tooltip: 'Edit Device Name',
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete),
+                                        onPressed: () {
+                                          _deleteDevice(deviceId, deviceName ?? '');
+                                        },
+                                        tooltip: 'Delete Device',
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
