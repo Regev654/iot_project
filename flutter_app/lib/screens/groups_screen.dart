@@ -771,153 +771,158 @@ class _GroupsScreenState extends State<GroupsScreen> {
                         itemCount: _groups.length,
                         itemBuilder: (context, index) {
                           final group = _groups.values.elementAt(index);
-                          return Card(
-                            elevation: 4,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    theme.colorScheme.primary.withOpacity(0.1),
-                                    theme.colorScheme.surface,
-                                  ],
+                          return Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: Card(
+                                elevation: 4,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: theme.colorScheme.primary.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Icon(
-                                          Icons.group,
-                                          color: theme.colorScheme.primary,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Text(
-                                          group.groupName,
-                                          style: theme.textTheme.titleLarge?.copyWith(
-                                            color: theme.colorScheme.primary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: Icon(Icons.add),
-                                        tooltip: 'Add/Edit Items',
-                                        onPressed: () => _editGroupItemsScreen(group),
-                                      ),
-                                      IconButton(
-                                        icon: Icon(Icons.delete),
-                                        color: theme.colorScheme.error,
-                                        onPressed: () => _deleteGroup(group.groupId),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      _buildStatChip(
-                                        theme,
-                                        Icons.people,
-                                        '${group.participantIds.length} Participants',
-                                        theme.colorScheme.tertiary,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  TextField(
-                                    controller: _searchControllers.putIfAbsent(
-                                      group.groupId,
-                                      () => TextEditingController(),
+                                child: Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        theme.colorScheme.primary.withOpacity(0.1),
+                                        theme.colorScheme.surface,
+                                      ],
                                     ),
-                                    decoration: InputDecoration(
-                                      hintText: 'Search participants...',
-                                      prefixIcon: const Icon(Icons.search),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                    ),
-                                    onChanged: (value) {
-                                      setState(() {});
-                                    },
                                   ),
-                                  const SizedBox(height: 16),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      if (_isLoadingParticipants[group.groupId] == true)
-                                        const Padding(
-                                          padding: EdgeInsets.all(8.0),
-                                          child: SizedBox(
-                                            width: 20,
-                                            height: 20,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(12),
+                                            decoration: BoxDecoration(
+                                              color: theme.colorScheme.primary.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.group,
+                                              color: theme.colorScheme.primary,
                                             ),
                                           ),
-                                        )
-                                      else
-                                        ...group.participantIds
-                                            .where((id) {
-                                              final searchText = _searchControllers[group.groupId]?.text.toLowerCase() ?? '';
-                                              return searchText.isEmpty || id.toLowerCase().contains(searchText);
-                                            })
-                                            .take(_showAllParticipants[group.groupId] == true ? 999999 : 10)
-                                            .map((participantId) => FilterChip(
-                                                  label: Text(participantId),
-                                                  deleteIcon: const Icon(Icons.close),
-                                                  onDeleted: () => _removeParticipant(group.groupId, participantId),
-                                                  onSelected: (_) => _showParticipantDetails(group.groupId, participantId),
-                                                  selected: false,
-                                                )),
-                                      if (group.participantIds.length > 10 && !(_showAllParticipants[group.groupId] ?? false))
-                                        TextButton.icon(
-                                          onPressed: () => _showAllGroupParticipantsScreen(group),
-                                          icon: const Icon(Icons.people),
-                                          label: const Text('Load All'),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: theme.colorScheme.primary,
-                                            textStyle: theme.textTheme.bodyLarge,
+                                          const SizedBox(width: 16),
+                                          Expanded(
+                                            child: Text(
+                                              group.groupName,
+                                              style: theme.textTheme.titleLarge?.copyWith(
+                                                color: theme.colorScheme.primary,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.add),
+                                            tooltip: 'Add/Edit Items',
+                                            onPressed: () => _editGroupItemsScreen(group),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(Icons.delete),
+                                            color: theme.colorScheme.error,
+                                            onPressed: () => _deleteGroup(group.groupId),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          _buildStatChip(
+                                            theme,
+                                            Icons.people,
+                                            '${group.participantIds.length} Participants',
+                                            theme.colorScheme.tertiary,
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      TextField(
+                                        controller: _searchControllers.putIfAbsent(
+                                          group.groupId,
+                                          () => TextEditingController(),
+                                        ),
+                                        decoration: InputDecoration(
+                                          hintText: 'Search participants...',
+                                          prefixIcon: const Icon(Icons.search),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(8),
                                           ),
                                         ),
-                                      ActionChip(
-                                        avatar: const Icon(Icons.add),
-                                        label: const Text('Add Participant'),
-                                        onPressed: () => _addParticipant(group.groupId),
-                                        backgroundColor: theme.colorScheme.surfaceVariant ?? Colors.grey[200],
-                                        labelStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface),
+                                        onChanged: (value) {
+                                          setState(() {});
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 8,
+                                        children: [
+                                          if (_isLoadingParticipants[group.groupId] == true)
+                                            const Padding(
+                                              padding: EdgeInsets.all(8.0),
+                                              child: SizedBox(
+                                                width: 20,
+                                                height: 20,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                ),
+                                              ),
+                                            )
+                                          else
+                                            ...group.participantIds
+                                                .where((id) {
+                                                  final searchText = _searchControllers[group.groupId]?.text.toLowerCase() ?? '';
+                                                  return searchText.isEmpty || id.toLowerCase().contains(searchText);
+                                                })
+                                                .take(_showAllParticipants[group.groupId] == true ? 999999 : 10)
+                                                .map((participantId) => FilterChip(
+                                                      label: Text(participantId),
+                                                      deleteIcon: const Icon(Icons.close),
+                                                      onDeleted: () => _removeParticipant(group.groupId, participantId),
+                                                      onSelected: (_) => _showParticipantDetails(group.groupId, participantId),
+                                                      selected: false,
+                                                    )),
+                                          if (group.participantIds.length > 10 && !(_showAllParticipants[group.groupId] ?? false))
+                                            TextButton.icon(
+                                              onPressed: () => _showAllGroupParticipantsScreen(group),
+                                              icon: const Icon(Icons.people),
+                                              label: const Text('Load All'),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: theme.colorScheme.primary,
+                                                textStyle: theme.textTheme.bodyLarge,
+                                              ),
+                                            ),
+                                          ActionChip(
+                                            avatar: const Icon(Icons.add),
+                                            label: const Text('Add Participant'),
+                                            onPressed: () => _addParticipant(group.groupId),
+                                            backgroundColor: theme.colorScheme.surfaceVariant ?? Colors.grey[200],
+                                            labelStyle: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: FilledButton.icon(
+                                              onPressed: () => _uploadCSV(group.groupId),
+                                              icon: const Icon(Icons.upload_file),
+                                              label: const Text('Upload CSV'),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: FilledButton.icon(
-                                          onPressed: () => _uploadCSV(group.groupId),
-                                          icon: const Icon(Icons.upload_file),
-                                          label: const Text('Upload CSV'),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           );

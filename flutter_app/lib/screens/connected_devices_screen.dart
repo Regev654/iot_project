@@ -320,115 +320,120 @@ class _ConnectedDevicesScreenState extends State<ConnectedDevicesScreen> {
                           final deviceName = deviceData['name'] as String?;
                           final displayName = deviceName?.isNotEmpty == true ? deviceName! : deviceId;
                           
-                          return Card(
-                            elevation: 4,
-                            margin: const EdgeInsets.only(bottom: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    theme.colorScheme.primary.withOpacity(0.1),
-                                    theme.colorScheme.surface,
-                                  ],
+                          return Center(
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 800),
+                              child: Card(
+                                elevation: 4,
+                                margin: const EdgeInsets.only(bottom: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
+                                child: Container(
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        theme.colorScheme.primary.withOpacity(0.1),
+                                        theme.colorScheme.surface,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        width: 12,
-                                        height: 12,
-                                        decoration: BoxDecoration(
-                                          color: isConnected ? Colors.green : Colors.red,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              displayName,
-                                              style: theme.textTheme.titleMedium?.copyWith(
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 12,
+                                            height: 12,
+                                            decoration: BoxDecoration(
+                                              color: isConnected ? Colors.green : Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  displayName,
+                                                  style: theme.textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: theme.colorScheme.primary,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'ID: $deviceId',
+                                                  style: theme.textTheme.bodySmall?.copyWith(
+                                                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isConnected 
+                                                  ? Colors.green.withOpacity(0.1)
+                                                  : Colors.red.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(20),
+                                            ),
+                                            child: Text(
+                                              isConnected ? 'Connected' : 'Not Connected',
+                                              style: TextStyle(
+                                                color: isConnected ? Colors.green : Colors.red,
                                                 fontWeight: FontWeight.bold,
-                                                color: theme.colorScheme.primary,
+                                                fontSize: 12,
                                               ),
                                             ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'ID: $deviceId',
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              isConnected 
+                                                  ? 'Active'
+                                                  : 'Last seen: ${_formatLastSeen(lastSeen)}',
                                               style: theme.textTheme.bodySmall?.copyWith(
-                                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                                color: isConnected 
+                                                    ? Colors.green 
+                                                    : theme.colorScheme.onSurface.withOpacity(0.6),
+                                                fontWeight: isConnected ? FontWeight.bold : FontWeight.normal,
                                               ),
                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: isConnected 
-                                              ? Colors.green.withOpacity(0.1)
-                                              : Colors.red.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(20),
-                                        ),
-                                        child: Text(
-                                          isConnected ? 'Connected' : 'Not Connected',
-                                          style: TextStyle(
-                                            color: isConnected ? Colors.green : Colors.red,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
                                           ),
-                                        ),
+                                          IconButton(
+                                            icon: const Icon(Icons.edit),
+                                            onPressed: () {
+                                              _showEditNameDialog(deviceId, deviceName ?? '');
+                                            },
+                                            tooltip: 'Edit Device Name',
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.delete),
+                                            onPressed: () {
+                                              _deleteDevice(deviceId, deviceName ?? '');
+                                            },
+                                            tooltip: 'Delete Device',
+                                          ),
+                                        ],
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          isConnected 
-                                              ? 'Active'
-                                              : 'Last seen: ${_formatLastSeen(lastSeen)}',
-                                          style: theme.textTheme.bodySmall?.copyWith(
-                                            color: isConnected 
-                                                ? Colors.green 
-                                                : theme.colorScheme.onSurface.withOpacity(0.6),
-                                            fontWeight: isConnected ? FontWeight.bold : FontWeight.normal,
-                                          ),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.edit),
-                                        onPressed: () {
-                                          _showEditNameDialog(deviceId, deviceName ?? '');
-                                        },
-                                        tooltip: 'Edit Device Name',
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.delete),
-                                        onPressed: () {
-                                          _deleteDevice(deviceId, deviceName ?? '');
-                                        },
-                                        tooltip: 'Delete Device',
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           );

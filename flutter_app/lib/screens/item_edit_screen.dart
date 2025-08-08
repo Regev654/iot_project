@@ -397,109 +397,114 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              if (items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 32),
-                  child: Text('No items yet. Add your first item below!', style: theme.textTheme.bodyLarge),
-                ),
-              Expanded(
-                child: ListView(
-                  children: items.entries.map((entry) => Card(
-                    color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
-                    elevation: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    child: ListTile(
-                      leading: Icon(Icons.label, color: theme.colorScheme.primary),
-                      title: Text(entry.key, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Max Tokens: ${entry.value}', style: theme.textTheme.bodyMedium),
-                      trailing: IconButton(
-                        icon: Icon(Icons.delete, color: theme.colorScheme.error),
-                        onPressed: () async {
-                          final itemName = entry.key;
-                          setState(() {
-                            items.remove(entry.key);
-                          });
-                          await _removeItemFromFirebase(itemName);
-                        },
-                      ),
-                      onTap: () {
-                        nameController.text = entry.key;
-                        tokensController.text = entry.value.toString();
-                      },
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                children: [
+                  if (items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text('No items yet. Add your first item below!', style: theme.textTheme.bodyLarge),
                     ),
-                  )).toList(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              SingleChildScrollView(
-                child: Column(
-                  children: [
-                    Card(
-                      color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
-                      elevation: 1,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: nameController,
-                                decoration: InputDecoration(
-                                  labelText: 'Item Name',
-                                  prefixIcon: Icon(Icons.label_outline),
-                                  hintText: 'e.g. Free Pizza',
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: 12),
-                            Expanded(
-                              child: TextField(
-                                controller: tokensController,
-                                decoration: InputDecoration(
-                                  labelText: 'Max Tokens',
-                                  prefixIcon: Icon(Icons.confirmation_num_outlined),
-                                  hintText: 'e.g. 2',
-                                ),
-                                keyboardType: TextInputType.number,
-                              ),
-                            ),
-                          ],
+                  Expanded(
+                    child: ListView(
+                      children: items.entries.map((entry) => Card(
+                        color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
+                        elevation: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        child: ListTile(
+                          leading: Icon(Icons.label, color: theme.colorScheme.primary),
+                          title: Text(entry.key, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                          subtitle: Text('Max Tokens: ${entry.value}', style: theme.textTheme.bodyMedium),
+                          trailing: IconButton(
+                            icon: Icon(Icons.delete, color: theme.colorScheme.error),
+                            onPressed: () async {
+                              final itemName = entry.key;
+                              setState(() {
+                                items.remove(entry.key);
+                              });
+                              await _removeItemFromFirebase(itemName);
+                            },
+                          ),
+                          onTap: () {
+                            nameController.text = entry.key;
+                            tokensController.text = entry.value.toString();
+                          },
                         ),
-                      ),
+                      )).toList(),
                     ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          final name = nameController.text.trim();
-                          final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
-                          if (name.isNotEmpty && tokens > 0) {
-                            setState(() {
-                              items[name] = tokens;
-                              nameController.clear();
-                              tokensController.clear();
-                            });
-                            await _saveItemToFirebase(name, tokens);
-                          }
-                        },
-                        icon: Icon(Icons.add),
-                        label: Text('Add/Update Item'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: theme.colorScheme.primary,
-                          foregroundColor: theme.colorScheme.onPrimary,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          textStyle: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        Card(
+                          color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
+                          elevation: 1,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: nameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Item Name',
+                                      prefixIcon: Icon(Icons.label_outline),
+                                      hintText: 'e.g. Free Pizza',
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Expanded(
+                                  child: TextField(
+                                    controller: tokensController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Max Tokens',
+                                      prefixIcon: Icon(Icons.confirmation_num_outlined),
+                                      hintText: 'e.g. 2',
+                                    ),
+                                    keyboardType: TextInputType.number,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final name = nameController.text.trim();
+                              final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
+                              if (name.isNotEmpty && tokens > 0) {
+                                setState(() {
+                                  items[name] = tokens;
+                                  nameController.clear();
+                                  tokensController.clear();
+                                });
+                                await _saveItemToFirebase(name, tokens);
+                              }
+                            },
+                            icon: Icon(Icons.add),
+                            label: Text('Add/Update Item'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              textStyle: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
+                      ],
                     ),
-                    SizedBox(height: MediaQuery.of(context).viewInsets.bottom),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

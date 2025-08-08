@@ -120,28 +120,22 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
 
   Future<void> _makeLiveEvent() async {
     try {
-      if (_isLiveEvent) {
-        // Stop live event
-        await FirebaseDatabase.instance.ref().child('LiveEventV3').remove();
-        setState(() => _isLiveEvent = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Event is no longer live')),
-          );
-        }
+      // Update only the id field
+      await FirebaseDatabase.instance.ref().child('LiveEventV3/id').set(widget.event.eventId);
+      
+      // Update defaultItems only if they exist, otherwise remove the entry
+      if (_showDefaultItems && _defaultItems.isNotEmpty) {
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(_defaultItems);
       } else {
-        // Start live event
-        // Format: { id: <eventId>, defaultItems: {itemName: maxTokens, ...} }
-        await FirebaseDatabase.instance.ref().child('LiveEventV3').set({
-          'id': widget.event.eventId,
-          'defaultItems': _showDefaultItems ? _defaultItems : {},
-        });
+        // Remove defaultItems entry if it exists
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+      }
+      
         setState(() => _isLiveEvent = true);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Event is now live')),
           );
-        }
       }
     } catch (e) {
       if (mounted) {
@@ -275,7 +269,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.delete),
-            color: theme.colorScheme.error,
+            color: Colors.white,
             onPressed: _deleteEvent,
           ),
         ],
@@ -293,393 +287,505 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final isWideScreen = constraints.maxWidth > 600;
-                          final buttonWidth = isWideScreen ? 250.0 : constraints.maxWidth * 0.85;
-                          final buttonHeight = isWideScreen ? 65.0 : 60.0;
-                          
-                          return Center(
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxWidth: isWideScreen ? 900.0 : constraints.maxWidth,
-                              ),
-                              child: Wrap(
-                                spacing: 16,
-                                runSpacing: 16,
-                                alignment: WrapAlignment.center,
-                                children: [
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    height: buttonHeight,
-                                    child: FilledButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => GroupsScreen(event: widget.event),
-                                          ),
-                                        );
-                                      },
-                                      icon: Icon(
-                                        Icons.group,
-                                        size: isWideScreen ? 32 : 28,
-                                      ),
-                                      label: Text(
-                                        'Manage Groups',
-                                        style: TextStyle(
-                                          fontSize: isWideScreen ? 18 : 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: theme.colorScheme.primary,
-                                        foregroundColor: theme.colorScheme.onPrimary,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                    ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isWideScreen = constraints.maxWidth > 600;
+                              final buttonWidth = isWideScreen ? 250.0 : constraints.maxWidth * 0.85;
+                              final buttonHeight = isWideScreen ? 65.0 : 60.0;
+                              
+                              return Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isWideScreen ? 900.0 : constraints.maxWidth,
                                   ),
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    height: buttonHeight,
-                                    child: FilledButton.icon(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => EventStatsScreen(event: widget.event),
+                                  child: Wrap(
+                                    spacing: 16,
+                                    runSpacing: 16,
+                                    alignment: WrapAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => GroupsScreen(event: widget.event),
+                                              ),
+                                            );
+                                          },
+                                          icon: Icon(
+                                            Icons.group,
+                                            size: isWideScreen ? 32 : 28,
                                           ),
-                                        );
-                                      },
-                                      icon: Icon(
-                                        Icons.analytics,
-                                        size: isWideScreen ? 32 : 28,
-                                      ),
-                                      label: Text(
-                                        'View Stats',
-                                        style: TextStyle(
-                                          fontSize: isWideScreen ? 18 : 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor: theme.colorScheme.secondary,
-                                        foregroundColor: theme.colorScheme.onSecondary,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(16),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: buttonWidth,
-                                    height: buttonHeight,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                          colors: _isLiveEvent 
-                                            ? [Colors.red.shade700, Colors.red.shade900]
-                                            : [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
-                                        ),
-                                        borderRadius: BorderRadius.circular(16),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: (_isLiveEvent ? Colors.red : theme.colorScheme.primary).withOpacity(0.3),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 4),
+                                          label: Text(
+                                            'Manage Groups',
+                                            style: TextStyle(
+                                              fontSize: isWideScreen ? 18 : 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
-                                        ],
-                                      ),
-                                      child: FilledButton.icon(
-                                        onPressed: _makeLiveEvent,
-                                        icon: Icon(
-                                          _isLiveEvent ? Icons.live_tv : Icons.live_tv,
-                                          size: isWideScreen ? 32 : 28,
-                                        ),
-                                        label: Text(
-                                          _isLiveEvent ? 'Stop Live Event' : 'Make Live Event',
-                                          style: TextStyle(
-                                            fontSize: isWideScreen ? 18 : 16,
-                                            fontWeight: FontWeight.bold,
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.primary,
+                                            foregroundColor: theme.colorScheme.onPrimary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
                                           ),
                                         ),
-                                        style: FilledButton.styleFrom(
-                                          backgroundColor: Colors.transparent,
-                                          foregroundColor: Colors.white,
-                                          shape: RoundedRectangleBorder(
+                                      ),
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => EventStatsScreen(event: widget.event),
+                                              ),
+                                            );
+                                          },
+                                          icon: Icon(
+                                            Icons.analytics,
+                                            size: isWideScreen ? 32 : 28,
+                                          ),
+                                          label: Text(
+                                            'View Stats',
+                                            style: TextStyle(
+                                              fontSize: isWideScreen ? 18 : 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.secondary,
+                                            foregroundColor: theme.colorScheme.onSecondary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: _isLiveEvent 
+                                                ? [Colors.green.shade600, Colors.green.shade800]
+                                                : [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+                                            ),
                                             borderRadius: BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: (_isLiveEvent ? Colors.green : theme.colorScheme.primary).withOpacity(0.3),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
                                           ),
-                                          padding: EdgeInsets.zero,
+                                          child: FilledButton.icon(
+                                            onPressed: _isLiveEvent ? null : _makeLiveEvent,
+                                            icon: Icon(
+                                              Icons.live_tv,
+                                              size: isWideScreen ? 32 : 28,
+                                            ),
+                                            label: Text(
+                                              _isLiveEvent ? 'Event is Live' : 'Make Live Event',
+                                              style: TextStyle(
+                                                fontSize: isWideScreen ? 18 : 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              disabledForegroundColor: Colors.white.withOpacity(0.7),
+                                            ),
+                                          ),
                                         ),
                                       ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Column(
+                            children: [
+                              Icon(Icons.people, color: theme.colorScheme.primary, size: 28),
+                              SizedBox(height: 4),
+                              Text('${_participants.length}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 2),
+                              Text('Total Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                            ],
+                          ),
+                          SizedBox(width: 16),
+                          Column(
+                            children: [
+                              Icon(Icons.person, color: theme.colorScheme.secondary, size: 28),
+                              SizedBox(height: 4),
+                              Text('${getActiveUsers()}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 2),
+                              Text('Active Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                            ],
+                          ),
+                          if (_participants.isNotEmpty) ...[
+                            SizedBox(width: 16),
+                            Column(
+                              children: [
+                                Icon(Icons.percent, color: theme.colorScheme.tertiary, size: 28),
+                                SizedBox(height: 4),
+                                Text('(${(getActiveUsers() / _participants.length * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary, fontWeight: FontWeight.bold)),
+                                SizedBox(height: 2),
+                                Text('Active %', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Switch(
+                                value: _showDefaultItems,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _showDefaultItems = val;
+                                  });
+                                  _updateLiveEventDefaultItems();
+                                },
+                                activeColor: theme.colorScheme.primary,
+                              ),
+                              Text('Add default items', style: theme.textTheme.titleMedium),
+                            ],
+                          ),
+                          if (_showDefaultItems) ...[
+                            Row(
+                              children: [
+                                Text(
+                                  'Default Items',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: Icon(Icons.edit),
+                                  color: theme.colorScheme.primary,
+                                  onPressed: _editDefaultItemsScreen,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (_defaultItems.isNotEmpty)
+                              Wrap(
+                                spacing: 8,
+                                children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Participants',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search participants...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Card(
-                color: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      Column(
-                        children: [
-                          Icon(Icons.people, color: theme.colorScheme.primary, size: 28),
-                          SizedBox(height: 4),
-                          Text('${_participants.length}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 2),
-                          Text('Total Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
-                        ],
-                      ),
-                      SizedBox(width: 16),
-                      Column(
-                        children: [
-                          Icon(Icons.person, color: theme.colorScheme.secondary, size: 28),
-                          SizedBox(height: 4),
-                          Text('${getActiveUsers()}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 2),
-                          Text('Active Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
-                        ],
-                      ),
-                      if (_participants.isNotEmpty) ...[
-                        SizedBox(width: 16),
-                        Column(
-                          children: [
-                            Icon(Icons.percent, color: theme.colorScheme.tertiary, size: 28),
-                            SizedBox(height: 4),
-                            Text('(${(getActiveUsers() / _participants.length * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary, fontWeight: FontWeight.bold)),
-                            SizedBox(height: 2),
-                            Text('Active %', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Card(
-                color: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Switch(
-                            value: _showDefaultItems,
-                            onChanged: (val) {
-                              setState(() {
-                                _showDefaultItems = val;
-                              });
-                              _updateLiveEventDefaultItems();
-                            },
-                            activeColor: theme.colorScheme.primary,
-                          ),
-                          Text('Add default items', style: theme.textTheme.titleMedium),
-                        ],
-                      ),
-                      if (_showDefaultItems) ...[
-                        Row(
-                          children: [
-                            Text(
-                              'Default Items',
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              icon: Icon(Icons.edit),
-                              color: theme.colorScheme.primary,
-                              onPressed: _editDefaultItemsScreen,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        if (_defaultItems.isNotEmpty)
-                          Wrap(
-                            spacing: 8,
-                            children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
-                          ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Participants',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              color: theme.colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _searchController,
-                              decoration: InputDecoration(
-                                hintText: 'Search participants...',
-                                prefixIcon: const Icon(Icons.search),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  onChanged: (value) {
+                                    setState(() {});
+                                  },
                                 ),
                               ),
-                              onChanged: (value) {
-                                setState(() {});
-                              },
-                            ),
+                            ],
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      ..._participants.values
-                          .where((p) {
-                            final searchText = _searchController.text.toLowerCase();
-                            return searchText.isEmpty || p.id.toLowerCase().contains(searchText);
-                          })
-                          .take(10)
-                          .map((participant) {
-                            return Card(
-                              elevation: 1,
-                              margin: const EdgeInsets.only(bottom: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: ExpansionTile(
-                                title: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 12,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: theme.colorScheme.primary.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        participant.id,
-                                        style: TextStyle(
-                                          color: theme.colorScheme.primary,
-                                          fontWeight: FontWeight.bold,
+                          const SizedBox(height: 16),
+                          ..._participants.values
+                              .where((p) {
+                                final searchText = _searchController.text.toLowerCase();
+                                return searchText.isEmpty || p.id.toLowerCase().contains(searchText);
+                              })
+                              .take(10)
+                              .map((participant) {
+                                 return Container(
+                                   margin: const EdgeInsets.only(bottom: 16),
+                                   decoration: BoxDecoration(
+                                     color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                     border: Border.all(
+                                       color: Colors.grey[300]!,
+                                       width: 1,
+                                     ),
+                                     boxShadow: [
+                                       BoxShadow(
+                                         color: Colors.black.withOpacity(0.05),
+                                         blurRadius: 4,
+                                         offset: const Offset(0, 2),
+                                       ),
+                                     ],
+                                   ),
+                                   child: Column(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                       // Participant ID header
+                                       Padding(
+                                         padding: const EdgeInsets.all(12),
+                                         child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primary.withOpacity(0.1),
+                                             borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Text(
+                                            participant.id,
+                                            style: TextStyle(
+                                              color: theme.colorScheme.primary,
+                                               fontWeight: FontWeight.w600,
+                                               fontSize: 14,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                  ],
                                 ),
-                                children: participant.items.entries.map((entry) {
+                                   // Participant items
+                                   ...participant.items.entries.map((entry) {
                                   final itemName = entry.key;
                                   final maxTokens = entry.value['maxTokens'] ?? 0;
                                   final usedTokens = entry.value['usedTokens'] ?? 0;
                                   final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
-                                  return ListTile(
-                                    title: Text(itemName),
-                                    subtitle: LinearProgressIndicator(
+                                     return Container(
+                                       padding: const EdgeInsets.symmetric(
+                                         horizontal: 16,
+                                         vertical: 12,
+                                       ),
+                                                                                decoration: BoxDecoration(
+                                           border: Border(
+                                             bottom: BorderSide(
+                                               color: Colors.grey[400]!,
+                                               width: 1.5,
+                                             ),
+                                           ),
+                                         ),
+                                                                                child: Column(
+                                           crossAxisAlignment: CrossAxisAlignment.start,
+                                           children: [
+                                             // Item name
+                                             Text(
+                                               itemName,
+                                               style: theme.textTheme.bodyMedium?.copyWith(
+                                                 fontWeight: FontWeight.w500,
+                                                 color: Colors.grey[800],
+                                               ),
+                                             ),
+                                             const SizedBox(height: 8),
+                                             // Progress bar and buttons row
+                                             Row(
+                                               children: [
+                                                 Expanded(
+                                                   child: LinearProgressIndicator(
                                       value: usagePercentage / 100,
                                       backgroundColor: Colors.grey[200],
                                       valueColor: AlwaysStoppedAnimation<Color>(
                                         usagePercentage > 80
-                                            ? Colors.red
+                                                           ? Colors.red[400]!
                                             : usagePercentage > 50
-                                                ? Colors.orange
-                                                : Colors.green,
-                                      ),
-                                      minHeight: 8,
-                                    ),
-                                    trailing: Row(
+                                                               ? Colors.orange[400]!
+                                                               : Colors.green[400]!,
+                                                     ),
+                                                     minHeight: 6,
+                                                   ),
+                                                 ),
+                                                 const SizedBox(width: 12),
+                                                 Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        IconButton(
-                                          icon: Icon(Icons.remove),
-                                          onPressed: usedTokens > 0
+                                                     Container(
+                                                       width: 40,
+                                                       height: 40,
+                                                       decoration: BoxDecoration(
+                                                         color: usedTokens > 0 ? Colors.red[50] : Colors.grey[100],
+                                                         borderRadius: BorderRadius.circular(8),
+                                                         border: Border.all(
+                                                           color: usedTokens > 0 ? Colors.red[200]! : Colors.grey[300]!,
+                                                           width: 1,
+                                                         ),
+                                                       ),
+                                                       child: Material(
+                                                         color: Colors.transparent,
+                                                         child: InkWell(
+                                                           borderRadius: BorderRadius.circular(8),
+                                                           onTap: usedTokens > 0
                                               ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
                                               : null,
-                                        ),
-                                        Text('$usedTokens/$maxTokens'),
-                                        IconButton(
-                                          icon: Icon(Icons.add),
-                                          onPressed: usedTokens < maxTokens
+                                                           child: Center(
+                                                             child: Text(
+                                                               '-',
+                                                               style: TextStyle(
+                                                                 fontSize: 20,
+                                                                 fontWeight: FontWeight.bold,
+                                                                 color: usedTokens > 0 ? Colors.red[600] : Colors.grey[400],
+                                                               ),
+                                                             ),
+                                                           ),
+                                                         ),
+                                                       ),
+                                                     ),
+                                                     const SizedBox(width: 8),
+                                                     Container(
+                                                       width: 40,
+                                                       height: 40,
+                                                       decoration: BoxDecoration(
+                                                         color: usedTokens < maxTokens ? Colors.green[50] : Colors.grey[100],
+                                                         borderRadius: BorderRadius.circular(8),
+                                                         border: Border.all(
+                                                           color: usedTokens < maxTokens ? Colors.green[200]! : Colors.grey[300]!,
+                                                           width: 1,
+                                                         ),
+                                                       ),
+                                                       child: Material(
+                                                         color: Colors.transparent,
+                                                         child: InkWell(
+                                                           borderRadius: BorderRadius.circular(8),
+                                                           onTap: usedTokens < maxTokens
                                               ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
                                               : null,
+                                                           child: Center(
+                                                             child: Text(
+                                                               '+',
+                                                               style: TextStyle(
+                                                                 fontSize: 20,
+                                                                 fontWeight: FontWeight.bold,
+                                                                 color: usedTokens < maxTokens ? Colors.green[600] : Colors.grey[400],
+                                                               ),
+                                                             ),
+                                                           ),
+                                                         ),
+                                                       ),
+                                                     ),
+                                                   ],
+                                                 ),
+                                               ],
+                                             ),
+                                             const SizedBox(height: 4),
+                                             Text(
+                                               '$usedTokens/$maxTokens',
+                                               style: theme.textTheme.bodySmall?.copyWith(
+                                                 color: Colors.grey[600],
+                                                 fontSize: 12,
+                                               ),
                                         ),
                                       ],
                                     ),
                                   );
                                 }).toList(),
+                                 ],
                               ),
                             );
                           }).toList(),
-                      if (_participants.length > 10)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'There are more than 10 participants. Use search to find more participants',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontStyle: FontStyle.italic,
+                          if (_participants.length > 10)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'There are more than 10 participants. Use search to find more participants',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
