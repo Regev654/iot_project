@@ -173,7 +173,7 @@ private:
     {
         Serial.print("\nRegistering active event. ");
         database.setSSEFilters("get,put,patch");
-        database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
+        database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, false);
         isSetActiveEvent = true;
         Serial.print("\nRegistering active event finished. ");
     }
@@ -185,6 +185,7 @@ private:
             return;
         lastKeepAlive = millis();
         database.set(fb_client, getKeepAliveUrl().c_str(), object_t("{ \".sv\": \"timestamp\" }"), processDataMock);
+        database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, false);
     }
 
     void checkAsyncResult()
