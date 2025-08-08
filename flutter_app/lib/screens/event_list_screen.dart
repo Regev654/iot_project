@@ -88,12 +88,7 @@ class _EventListScreenState extends State<EventListScreen> {
   Future<void> _signOut() async {
     try {
       await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => LoginScreen()),
-          (route) => false,
-        );
-      }
+      // No need to navigate manually - AuthWrapper will handle it
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

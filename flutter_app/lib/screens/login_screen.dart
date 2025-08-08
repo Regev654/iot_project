@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'event_list_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   @override
@@ -36,11 +35,8 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
-
-      // Navigate to the main app
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => EventListScreen()),
-      );
+      
+      // No need to navigate manually - AuthWrapper will handle it
     } on FirebaseAuthException catch (e) {
       // Use a generic message for security
       setState(() {
@@ -143,6 +139,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextFormField(
                               controller: _emailController,
                               keyboardType: TextInputType.emailAddress,
+                              autocorrect: false,
+                              enableSuggestions: true,
+                              autofillHints: [AutofillHints.email],
                               decoration: InputDecoration(
                                 labelText: 'Email',
                                 prefixIcon: Icon(Icons.email, color: theme.colorScheme.primary),
@@ -168,6 +167,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             TextFormField(
                               controller: _passwordController,
                               obscureText: true,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              autofillHints: [AutofillHints.password],
                               decoration: InputDecoration(
                                 labelText: 'Password',
                                 prefixIcon: Icon(Icons.lock, color: theme.colorScheme.primary),
