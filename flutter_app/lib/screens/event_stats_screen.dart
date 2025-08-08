@@ -190,8 +190,10 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           'Event Dashboard',
           style: TextStyle(color: Colors.white),
         ),
+        centerTitle: true,
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
+        foregroundColor: Colors.white,
       ),
       body: Container(
         decoration: BoxDecoration(

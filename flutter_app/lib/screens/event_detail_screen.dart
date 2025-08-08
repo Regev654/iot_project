@@ -263,6 +263,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.event.eventTitle),
+        centerTitle: true,
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,

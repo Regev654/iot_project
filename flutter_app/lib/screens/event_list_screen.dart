@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../models/event.dart';
 import 'event_detail_screen.dart';
 import 'connected_devices_screen.dart';
 import 'settings_screen.dart';
+import 'login_screen.dart';
 
 class EventListScreen extends StatefulWidget {
   const EventListScreen({super.key});
@@ -81,6 +83,24 @@ class _EventListScreenState extends State<EventListScreen> {
   void dispose() {
     _eventsSubscription.cancel();
     super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error signing out: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _addEvent() async {
@@ -171,6 +191,7 @@ class _EventListScreenState extends State<EventListScreen> {
             },
             tooltip: 'Connected Devices',
           ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -182,6 +203,12 @@ class _EventListScreenState extends State<EventListScreen> {
               );
             },
             tooltip: 'Settings',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+            tooltip: 'Sign Out',
           ),
         ],
       ),
@@ -380,7 +407,7 @@ class _EventListScreenState extends State<EventListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Build 3.0.6',
+              'Build 3.1.1',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.4),

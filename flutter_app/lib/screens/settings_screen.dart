@@ -331,9 +331,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             )
           else
-            TextButton(
+            IconButton(
               onPressed: _saveSettings,
-              child: Text('Save', style: TextStyle(color: theme.colorScheme.onPrimary)),
+              icon: const Icon(Icons.save),
+              tooltip: 'Save Settings',
             ),
         ],
       ),
