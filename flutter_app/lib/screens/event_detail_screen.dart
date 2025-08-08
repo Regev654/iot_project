@@ -639,130 +639,130 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                                   final maxTokens = entry.value['maxTokens'] ?? 0;
                                   final usedTokens = entry.value['usedTokens'] ?? 0;
                                   final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
-                                     return Container(
-                                       padding: const EdgeInsets.symmetric(
-                                         horizontal: 16,
-                                         vertical: 12,
-                                       ),
-                                                                                decoration: BoxDecoration(
-                                           border: Border(
-                                             bottom: BorderSide(
-                                               color: Colors.grey[400]!,
-                                               width: 1.5,
-                                             ),
-                                           ),
-                                         ),
-                                                                                child: Column(
-                                           crossAxisAlignment: CrossAxisAlignment.start,
-                                           children: [
-                                             // Item name
-                                             Text(
-                                               itemName,
-                                               style: theme.textTheme.bodyMedium?.copyWith(
-                                                 fontWeight: FontWeight.w500,
-                                                 color: Colors.grey[800],
-                                               ),
-                                             ),
-                                             const SizedBox(height: 8),
-                                             // Progress bar and buttons row
-                                             Row(
+                                     return Padding(
+                                       padding: const EdgeInsets.symmetric(vertical: 12),
+                                       child: Column(
+                                         children: [
+                                           Padding(
+                                             padding: const EdgeInsets.symmetric(horizontal: 12),
+                                             child: Column(
+                                               crossAxisAlignment: CrossAxisAlignment.start,
                                                children: [
-                                                 Expanded(
-                                                   child: LinearProgressIndicator(
-                                      value: usagePercentage / 100,
-                                      backgroundColor: Colors.grey[200],
-                                      valueColor: AlwaysStoppedAnimation<Color>(
-                                        usagePercentage > 80
-                                                           ? Colors.red[400]!
-                                            : usagePercentage > 50
-                                                               ? Colors.orange[400]!
-                                                               : Colors.green[400]!,
-                                                     ),
-                                                     minHeight: 6,
+                                                 Text(
+                                                   itemName,
+                                                   style: theme.textTheme.bodyMedium?.copyWith(
+                                                     fontWeight: FontWeight.w500,
+                                                     color: Colors.grey[800],
                                                    ),
                                                  ),
-                                                 const SizedBox(width: 12),
+                                                 const SizedBox(height: 8),
                                                  Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                                     Container(
-                                                       width: 40,
-                                                       height: 40,
-                                                       decoration: BoxDecoration(
-                                                         color: usedTokens > 0 ? Colors.red[50] : Colors.grey[100],
-                                                         borderRadius: BorderRadius.circular(8),
-                                                         border: Border.all(
-                                                           color: usedTokens > 0 ? Colors.red[200]! : Colors.grey[300]!,
-                                                           width: 1,
+                                                   children: [
+                                                     Expanded(
+                                                       child: LinearProgressIndicator(
+                                                         value: usagePercentage / 100,
+                                                         backgroundColor: Colors.grey[200],
+                                                         valueColor: AlwaysStoppedAnimation<Color>(
+                                                           usagePercentage > 80
+                                                               ? Colors.red[400]!
+                                                               : usagePercentage > 50
+                                                                   ? Colors.orange[400]!
+                                                                   : Colors.green[400]!,
                                                          ),
-                                                       ),
-                                                       child: Material(
-                                                         color: Colors.transparent,
-                                                         child: InkWell(
-                                                           borderRadius: BorderRadius.circular(8),
-                                                           onTap: usedTokens > 0
-                                              ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
-                                              : null,
-                                                           child: Center(
-                                                             child: Text(
-                                                               '-',
-                                                               style: TextStyle(
-                                                                 fontSize: 20,
-                                                                 fontWeight: FontWeight.bold,
-                                                                 color: usedTokens > 0 ? Colors.red[600] : Colors.grey[400],
-                                                               ),
-                                                             ),
-                                                           ),
-                                                         ),
+                                                         minHeight: 6,
                                                        ),
                                                      ),
-                                                     const SizedBox(width: 8),
-                                                     Container(
-                                                       width: 40,
-                                                       height: 40,
-                                                       decoration: BoxDecoration(
-                                                         color: usedTokens < maxTokens ? Colors.green[50] : Colors.grey[100],
-                                                         borderRadius: BorderRadius.circular(8),
-                                                         border: Border.all(
-                                                           color: usedTokens < maxTokens ? Colors.green[200]! : Colors.grey[300]!,
-                                                           width: 1,
-                                                         ),
-                                                       ),
-                                                       child: Material(
-                                                         color: Colors.transparent,
-                                                         child: InkWell(
-                                                           borderRadius: BorderRadius.circular(8),
-                                                           onTap: usedTokens < maxTokens
-                                              ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
-                                              : null,
-                                                           child: Center(
-                                                             child: Text(
-                                                               '+',
-                                                               style: TextStyle(
-                                                                 fontSize: 20,
-                                                                 fontWeight: FontWeight.bold,
-                                                                 color: usedTokens < maxTokens ? Colors.green[600] : Colors.grey[400],
+                                                     const SizedBox(width: 12),
+                                                     Row(
+                                                       mainAxisSize: MainAxisSize.min,
+                                                       children: [
+                                                         Container(
+                                                           width: 40,
+                                                           height: 40,
+                                                           decoration: BoxDecoration(
+                                                             color: usedTokens > 0 ? Colors.red[50] : Colors.grey[100],
+                                                             borderRadius: BorderRadius.circular(8),
+                                                             border: Border.all(
+                                                               color: usedTokens > 0 ? Colors.red[200]! : Colors.grey[300]!,
+                                                               width: 1,
+                                                             ),
+                                                           ),
+                                                           child: Material(
+                                                             color: Colors.transparent,
+                                                             child: InkWell(
+                                                               borderRadius: BorderRadius.circular(8),
+                                                               onTap: usedTokens > 0
+                                                                   ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
+                                                                   : null,
+                                                               child: Center(
+                                                                 child: Text(
+                                                                   '-',
+                                                                   style: TextStyle(
+                                                                     fontSize: 20,
+                                                                     fontWeight: FontWeight.bold,
+                                                                     color: usedTokens > 0 ? Colors.red[600] : Colors.grey[400],
+                                                                   ),
+                                                                 ),
                                                                ),
                                                              ),
                                                            ),
                                                          ),
-                                                       ),
+                                                         const SizedBox(width: 8),
+                                                         Container(
+                                                           width: 40,
+                                                           height: 40,
+                                                           decoration: BoxDecoration(
+                                                             color: usedTokens < maxTokens ? Colors.green[50] : Colors.grey[100],
+                                                             borderRadius: BorderRadius.circular(8),
+                                                             border: Border.all(
+                                                               color: usedTokens < maxTokens ? Colors.green[200]! : Colors.grey[300]!,
+                                                               width: 1,
+                                                             ),
+                                                           ),
+                                                           child: Material(
+                                                             color: Colors.transparent,
+                                                             child: InkWell(
+                                                               borderRadius: BorderRadius.circular(8),
+                                                               onTap: usedTokens < maxTokens
+                                                                   ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
+                                                                   : null,
+                                                               child: Center(
+                                                                 child: Text(
+                                                                   '+',
+                                                                   style: TextStyle(
+                                                                     fontSize: 20,
+                                                                     fontWeight: FontWeight.bold,
+                                                                     color: usedTokens < maxTokens ? Colors.green[600] : Colors.grey[400],
+                                                                   ),
+                                                                 ),
+                                                               ),
+                                                             ),
+                                                           ),
+                                                         ),
+                                                       ],
                                                      ),
                                                    ],
                                                  ),
+                                                 const SizedBox(height: 4),
+                                                 Text(
+                                                   '$usedTokens/$maxTokens',
+                                                   style: theme.textTheme.bodySmall?.copyWith(
+                                                     color: Colors.grey[600],
+                                                     fontSize: 12,
+                                                   ),
+                                                 ),
                                                ],
                                              ),
-                                             const SizedBox(height: 4),
-                                             Text(
-                                               '$usedTokens/$maxTokens',
-                                               style: theme.textTheme.bodySmall?.copyWith(
-                                                 color: Colors.grey[600],
-                                                 fontSize: 12,
-                                               ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
+                                           ),
+                                           const SizedBox(height: 8),
+                                           Container(
+                                             margin: const EdgeInsets.symmetric(horizontal: 10),
+                                             height: 1,
+                                             color: Colors.grey[300],
+                                           ),
+                                         ],
+                                       ),
+                                     );
                                 }).toList(),
                                  ],
                               ),
