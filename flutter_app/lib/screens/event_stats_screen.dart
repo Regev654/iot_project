@@ -214,28 +214,98 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  child: Column(
                     children: [
-                      _userStatTile(
-                        icon: Icons.people,
-                        label: 'Total Users',
-                        value: overallUserStats['totalUsers'] as int,
-                        color: theme.colorScheme.primary,
+                      // Overall statistics row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _userStatTile(
+                            icon: Icons.people,
+                            label: 'Total Users',
+                            value: overallUserStats['totalUsers'] as int,
+                            color: theme.colorScheme.primary,
+                          ),
+                          _userStatTile(
+                            icon: Icons.person,
+                            label: 'Active Users',
+                            value: overallUserStats['activeUsers'] as int,
+                            color: theme.colorScheme.secondary,
+                          ),
+                          _userStatTile(
+                            icon: Icons.percent,
+                            label: 'Active %',
+                            value: overallUserStats['activePct'] as double,
+                            color: theme.colorScheme.tertiary,
+                            isPercent: true,
+                          ),
+                        ],
                       ),
-                      _userStatTile(
-                        icon: Icons.person,
-                        label: 'Active Users',
-                        value: overallUserStats['activeUsers'] as int,
-                        color: theme.colorScheme.secondary,
-                      ),
-                      _userStatTile(
-                        icon: Icons.percent,
-                        label: 'Active %',
-                        value: overallUserStats['activePct'] as double,
-                        color: theme.colorScheme.tertiary,
-                        isPercent: true,
-                      ),
+                      // Group statistics
+                      if (groups.isNotEmpty) ...[
+                        Divider(height: 24, thickness: 1),
+                        ...groupUserStats.entries.map((entry) {
+                          final groupId = entry.key;
+                          final groupName = groupNames[groupId] ?? groupId;
+                          final stats = entry.value;
+                          return Container(
+                            margin: EdgeInsets.only(bottom: 4),
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: Colors.grey[200]!,
+                                width: 1,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    groupName,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  flex: 3,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      _inlineStatTile(
+                                        icon: Icons.people,
+                                        label: 'Total',
+                                        value: stats['totalUsers'] as int,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                      SizedBox(width: 16),
+                                      _inlineStatTile(
+                                        icon: Icons.person,
+                                        label: 'Active',
+                                        value: stats['activeUsers'] as int,
+                                        color: theme.colorScheme.secondary,
+                                      ),
+                                      SizedBox(width: 16),
+                                      _inlineStatTile(
+                                        icon: Icons.percent,
+                                        label: 'Active %',
+                                        value: stats['activePct'] as double,
+                                        color: theme.colorScheme.tertiary,
+                                        isPercent: true,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ],
                     ],
                   ),
                 ),
@@ -288,114 +358,7 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
                   ),
                 ),
               ),
-                             SizedBox(height: 16),
-               // Group statistics
-               if (groups.isNotEmpty) ...[
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Group Statistics',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: theme.colorScheme.primary,
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                        ...groupUserStats.entries.map((entry) {
-                          final groupId = entry.key;
-                          final groupName = groupNames[groupId] ?? groupId;
-                          final stats = entry.value;
-                          return Container(
-                            margin: EdgeInsets.only(bottom: 16),
-                            padding: EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.grey[200]!,
-                                width: 1,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  groupName,
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                                SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    _userStatTile(
-                                      icon: Icons.people,
-                                      label: 'Total Users',
-                                      value: stats['totalUsers'] as int,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                    _userStatTile(
-                                      icon: Icons.person,
-                                      label: 'Active Users',
-                                      value: stats['activeUsers'] as int,
-                                      color: theme.colorScheme.secondary,
-                                    ),
-                                    _userStatTile(
-                                      icon: Icons.percent,
-                                      label: 'Active %',
-                                      value: stats['activePct'] as double,
-                                      color: theme.colorScheme.tertiary,
-                                      isPercent: true,
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 16),
-                                // Token statistics for the group
-                                Row(
-                                  children: [
-                                    Expanded(child: _statTile('Total Tokens', (stats['totalTokens'] ?? 0) as int, theme)),
-                                    Expanded(child: _statTile('Used Tokens', (stats['usedTokens'] ?? 0) as int, theme)),
-                                    Expanded(child: _statTile('Remaining', (stats['remainingTokens'] ?? 0) as int, theme)),
-                                  ],
-                                ),
-                                SizedBox(height: 8),
-                                LinearProgressIndicator(
-                                  value: ((stats['tokenUsagePct'] ?? 0.0) as double) / 100,
-                                  backgroundColor: Colors.grey[200],
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    ((stats['tokenUsagePct'] ?? 0.0) as double) > 80 ? Colors.red : Colors.green,
-                                  ),
-                                ),
-                                SizedBox(height: 4),
-                                Text(
-                                  '${((stats['tokenUsagePct'] ?? 0.0) as double).toStringAsFixed(1)}% Tokens Used',
-                                  style: TextStyle(
-                                    color: ((stats['tokenUsagePct'] ?? 0.0) as double) > 80 ? Colors.red : Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ],
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-              ],
+               
               // Per-item stats
               ...itemStats.entries.map((entry) {
                 final name = entry.key;
@@ -497,6 +460,49 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           style: TextStyle(
             color: Colors.grey[700],
             fontSize: 14,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _compactUserStatTile({required IconData icon, required String label, required num value, required Color color, bool isPercent = false}) {
+    return Column(
+      children: [
+        Icon(icon, color: color, size: 24),
+        SizedBox(height: 4),
+        Text(
+          isPercent ? '${value.toStringAsFixed(1)}%' : value.toString(),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.grey[700],
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _inlineStatTile({required IconData icon, required String label, required num value, required Color color, bool isPercent = false}) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 16),
+        SizedBox(width: 4),
+        Text(
+          isPercent ? '${value.toStringAsFixed(1)}%' : value.toString(),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
           ),
         ),
       ],
