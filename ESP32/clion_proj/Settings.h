@@ -10,6 +10,7 @@
 class Settings
 {
     constexpr static const char* SETTINGS_PATH = "iot_settings";
+    constexpr static const char* KEEP_ALIVE_TIMEOUT = "keepAliveTimeout";
     constexpr static const char* REQUEST_TIMEOUT = "requestTimeout";
     constexpr static const char* WIFI_RECONNECT_TIMEOUT = "wifiReconnectTimeout";
     constexpr static const char* MAX_TOKENS_AT_ONCE = "maxTokensAtOnce";
@@ -28,6 +29,8 @@ public:
         usePrinter = preferences.getBool(USE_PRINTER, USE_PRINTER_PARAM);
         wifiSsid = preferences.getString(WIFI_SSID, IOT_WIFI_SSID).c_str();
         wifiPassword = preferences.getString(WIFI_PASSWORD, IOT_WIFI_PASSWORD).c_str();
+        keepAliveTimeout = preferences.getInt(KEEP_ALIVE_TIMEOUT, KEEP_ALIVE_TIMEOUT_PARAM);
+
         preferences.end();
     }
 
@@ -61,6 +64,11 @@ public:
         return maxTokensAtOnce;
     }
 
+    int getKeepAliveTimeout() const
+    {
+        return keepAliveTimeout;
+    }
+
     void updateSettings(const char* data)
     {
         Serial.printf("\nUpdate settings: %s", data);
@@ -72,6 +80,8 @@ public:
         wifiReconnectTimeout = doc.containsKey(WIFI_RECONNECT_TIMEOUT) ? doc[WIFI_RECONNECT_TIMEOUT] : WIFI_RECONNECT_TIMEOUT_PARAM;
         maxTokensAtOnce = doc.containsKey(MAX_TOKENS_AT_ONCE) ? doc[MAX_TOKENS_AT_ONCE] : MAX_TOKENS_AT_ONCE_PARAM;
         usePrinter = doc.containsKey(USE_PRINTER) ? doc[USE_PRINTER].as<bool>() : USE_PRINTER_PARAM;
+        keepAliveTimeout = doc.containsKey(KEEP_ALIVE_TIMEOUT) ? doc[KEEP_ALIVE_TIMEOUT] : KEEP_ALIVE_TIMEOUT_PARAM;
+
 
         wifiSsid = doc.containsKey(WIFI_SSID) ? doc[WIFI_SSID].as<std::string>() : IOT_WIFI_SSID;
         if(wifiSsid.empty() || 32 < wifiSsid.size()) {
@@ -92,7 +102,7 @@ public:
         preferences.putBool(USE_PRINTER, usePrinter);
         preferences.putString(WIFI_SSID, wifiSsid.c_str());
         preferences.putString(WIFI_PASSWORD, wifiPassword.c_str());
-
+        preferences.putInt(KEEP_ALIVE_TIMEOUT, KEEP_ALIVE_TIMEOUT_PARAM);
         preferences.end();
     }
 
@@ -103,6 +113,7 @@ private:
     bool usePrinter = USE_PRINTER_PARAM;
     std::string wifiSsid = IOT_WIFI_SSID;
     std::string wifiPassword = IOT_WIFI_PASSWORD;
+    int keepAliveTimeout = KEEP_ALIVE_TIMEOUT_PARAM;
     Preferences preferences;
 };
 

@@ -48,7 +48,11 @@ public:
     String data(){return {};}
     String dataPath(){return {};}
 };
-
+class EventLog{
+public:
+    String message() const {return {};}
+    int code() const {return 0;}
+};
 class AsyncResult{
 public:
     bool isEvent(){return false;}
@@ -57,6 +61,10 @@ public:
     bool isError() {return false;}
     bool available(){return true;}
     size_t length()const{return 0;}
+    String etag()const{return {};}
+    String debug()const{return {};}
+    EventLog eventLog()const{return {};}
+
     FirebaseError error()const{return {};}
     String uid()const{return {};}
     const char* c_str(){return "";}
@@ -87,7 +95,7 @@ public:
     void set(AsyncClientClass aClient, const char* path, T data, AsyncResult res){}
 
     template<class T>
-    void set(AsyncClientClass aClient, const char* path, T data, AsyncResultCallback res){}
+    void set(AsyncClientClass aClient, const char* path, T data, AsyncResultCallback res , String id = ""){}
 
 
 };

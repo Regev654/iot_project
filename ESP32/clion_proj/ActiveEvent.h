@@ -94,7 +94,7 @@ public:
     void update(const std::string path, const std::string& value, const std::string& methode)
     {
         isReady = true;
-        if(path=="/")
+        if(path=="/" || path.empty())
         {
             fullUpdate(value.c_str());
         }

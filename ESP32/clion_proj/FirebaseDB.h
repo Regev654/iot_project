@@ -21,7 +21,6 @@ void processDataMock(AsyncResult &aResult){}
 class FirebaseDB : public IFirebaseDB
 {
     static constexpr const char* ACTIVE_EVENT_PATH = "/LiveEventV3";
-    static constexpr const int KEEP_ALIVE_TIMEOUT = 2*1000;
 
     LedIndicator* ledIndicator;
     Settings* settings;
@@ -166,20 +165,26 @@ private:
     void registerActiveEvent()
     {
         if(!isSetActiveEvent) {
-            Serial.print("\nRegistering active event. ");
-            database.setSSEFilters("get,put,patch");
-            database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
-            isSetActiveEvent = true;
-            Serial.print("\nRegistering active event finished. ");
+            forceRegisterActiveEvent();
         }
+    }
+
+    void forceRegisterActiveEvent()
+    {
+        Serial.print("\nRegistering active event. ");
+        database.setSSEFilters("get,put,patch");
+        database.get(fb_client, ACTIVE_EVENT_PATH, activeEventResult, true);
+        isSetActiveEvent = true;
+        Serial.print("\nRegistering active event finished. ");
     }
 
     void sendKeepAlive()
     {
-        if(millis() - lastKeepAlive < KEEP_ALIVE_TIMEOUT)
+
+        if(millis() - lastKeepAlive < settings->getKeepAliveTimeout())
             return;
         lastKeepAlive = millis();
-        database.set(fb_client, getKeepAliveUrl().c_str(), object_t("{ \".sv\": \"timestamp\" }"), keepAliveResult);
+        database.set(fb_client, getKeepAliveUrl().c_str(), object_t("{ \".sv\": \"timestamp\" }"), processDataMock);
     }
 
     void checkAsyncResult()
