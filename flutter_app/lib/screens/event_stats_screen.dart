@@ -186,7 +186,10 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
     final combinedUsagePct = _roundPercentage(rawCombinedPercentage);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Event Dashboard'),
+        title: Text(
+          'Event Dashboard',
+          style: TextStyle(color: Colors.white),
+        ),
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
       ),
@@ -201,11 +204,14 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
             ],
           ),
         ),
-        child: SingleChildScrollView(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 800),
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               Card(
                 color: Colors.white,
                 elevation: 2,
@@ -414,6 +420,8 @@ class _EventStatsScreenState extends State<EventStatsScreen> {
           ),
         ),
       ),
+    ),
+  ),
     );
   }
 
