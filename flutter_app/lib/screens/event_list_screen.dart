@@ -3,6 +3,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 import '../models/event.dart';
 import 'event_detail_screen.dart';
+import 'connected_devices_screen.dart';
 
 class EventListScreen extends StatefulWidget {
   const EventListScreen({super.key});
@@ -156,6 +157,20 @@ class _EventListScreenState extends State<EventListScreen> {
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.devices),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ConnectedDevicesScreen(),
+                ),
+              );
+            },
+            tooltip: 'Connected Devices',
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -347,7 +362,7 @@ class _EventListScreenState extends State<EventListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Build 3.0.2',
+              'Build 3.0.3',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.4),
