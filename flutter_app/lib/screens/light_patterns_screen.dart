@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:gif/gif.dart';
 
@@ -9,51 +10,15 @@ class LightPatternsScreen extends StatelessWidget {
     final theme = Theme.of(context);
 
     final List<Map<String, String>> patterns = [
-      {
-        'name': 'Unauthorized',
-        'file': 'light-patterns-unauth.gif',
-        'description': 'User is not authorized to recieve tokens, and no default tokens are set.'
-      },
-      {
-        'name': 'Ready',
-        'file': 'light-patterns-ready.gif',
-        'description': 'Device is ready and idle.'
-      },
-      {
-        'name': 'Connecting to Wi‑Fi',
-        'file': 'light-patterns-connect-to-wifi.gif',
-        'description': 'Attempting to connect to the configured Wi‑Fi network.'
-      },
-      {
-        'name': 'Wi‑Fi Config Mode',
-        'file': 'light-patterns-wifi-config.gif',
-        'description': 'Device is in Wi‑Fi configuration mode.'
-      },
-      {
-        'name': 'Connecting to Server',
-        'file': 'light-patterns-connect-to-server.gif',
-        'description': 'Establishing connection to the backend server.'
-      },
-      {
-        'name': 'Checking User',
-        'file': 'light-patterns-check-user.gif',
-        'description': 'Verifying user or ticket.'
-      },
-      {
-        'name': 'Success',
-        'file': 'light-patterns-success.gif',
-        'description': 'Operation succeeded.'
-      },
-      {
-        'name': 'Run Out',
-        'file': 'light-patterns-runout.gif',
-        'description': 'Out of tokens or resources.'
-      },
-      {
-        'name': 'Error',
-        'file': 'light-patterns-error.gif',
-        'description': 'An error occurred, check the device or configuration.'
-      },
+      {'name': 'Unauthorized', 'file': 'light-patterns-unauth.gif', 'description': 'User is not authorized to receive tokens, and no default tokens are set.'},
+      {'name': 'Ready', 'file': 'light-patterns-ready.gif', 'description': 'Device is ready and idle.'},
+      {'name': 'Connecting to Wi-Fi', 'file': 'light-patterns-connect-to-wifi.gif', 'description': 'Attempting to connect to the configured Wi-Fi network.'},
+      {'name': 'Wi-Fi Config Mode', 'file': 'light-patterns-wifi-config.gif', 'description': 'Device is in Wi-Fi configuration mode.'},
+      {'name': 'Connecting to Server', 'file': 'light-patterns-connect-to-server.gif', 'description': 'Establishing connection to the backend server.'},
+      {'name': 'Checking User', 'file': 'light-patterns-check-user.gif', 'description': 'Verifying user or ticket.'},
+      {'name': 'Success', 'file': 'light-patterns-success.gif', 'description': 'Operation succeeded.'},
+      {'name': 'Run Out', 'file': 'light-patterns-runout.gif', 'description': 'Out of tokens or resources.'},
+      {'name': 'Error', 'file': 'light-patterns-error.gif', 'description': 'An error occurred, check the device or configuration.'},
     ];
 
     return Scaffold(
@@ -80,10 +45,6 @@ class LightPatternsScreen extends StatelessWidget {
           itemCount: patterns.length,
           itemBuilder: (context, index) {
             final item = patterns[index];
-            final name = item['name']!;
-            final description = item['description']!;
-            final file = item['file']!;
-
             return Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 800),
@@ -114,18 +75,7 @@ class LightPatternsScreen extends StatelessWidget {
                           child: SizedBox(
                             width: 140,
                             height: 100,
-                            child: Gif(
-                              image: AssetImage('assets/gifs/$file'),
-                              autostart: Autostart.loop,
-                              placeholder: (context) => const Center(
-                                child: SizedBox(
-                                  width: 24,
-                                  height: 24,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              ),
-                              fit: BoxFit.contain,
-                            ),
+                            child: _LoopingGif(file: item['file']!),
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -134,7 +84,7 @@ class LightPatternsScreen extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                name,
+                                item['name']!,
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   color: theme.colorScheme.primary,
                                   fontWeight: FontWeight.bold,
@@ -142,7 +92,7 @@ class LightPatternsScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                description,
+                                item['description']!,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurface.withOpacity(0.8),
                                 ),
@@ -160,5 +110,72 @@ class LightPatternsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _LoopingGif extends StatefulWidget {
+  final String file;
+  const _LoopingGif({required this.file});
+
+  @override
+  State<_LoopingGif> createState() => _LoopingGifState();
+}
+
+class _LoopingGifState extends State<_LoopingGif> with SingleTickerProviderStateMixin {
+  late GifController _controller;
+  bool _started = false;
+  bool _disposed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = GifController(vsync: this);
+  }
+
+  Future<void> _playCycle() async {
+    if (!mounted || _disposed) return;
+    final dur = _controller.duration ?? const Duration(seconds: 2);
+    // Start at beginning
+    try {
+      _controller.value = 0.0;
+    } catch (_) {}
+    // Play once fully
+    if (!mounted || _disposed) return;
+    await _controller.animateTo(1.0, duration: dur, curve: Curves.linear);
+    // Pause 0.5s
+    if (!mounted || _disposed) return;
+    await Future.delayed(const Duration(milliseconds: 500));
+    // Loop again
+    if (!mounted || _disposed) return;
+    unawaited(_playCycle());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Gif(
+      controller: _controller,
+      image: AssetImage('assets/gifs/${widget.file}'),
+      autostart: Autostart.no,
+      placeholder: (context) => const Center(
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      ),
+      fit: BoxFit.contain,
+      onFetchCompleted: () {
+        if (_started || _disposed) return;
+        _started = true;
+        unawaited(_playCycle());
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _controller.dispose();
+    super.dispose();
   }
 }
