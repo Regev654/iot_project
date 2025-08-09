@@ -7,6 +7,7 @@ import 'event_detail_screen.dart';
 import 'connected_devices_screen.dart';
 import 'settings_screen.dart';
 import 'login_screen.dart';
+import 'light_patterns_screen.dart';
 
 class EventListScreen extends StatefulWidget {
   const EventListScreen({super.key});
@@ -174,6 +175,19 @@ class _EventListScreenState extends State<EventListScreen> {
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.light_mode),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LightPatternsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Light Patterns',
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const Icon(Icons.devices),
             onPressed: () {
@@ -402,7 +416,7 @@ class _EventListScreenState extends State<EventListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Build 3.1.1',
+              'Build 3.1.2',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.4),

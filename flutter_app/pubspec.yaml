@@ -40,6 +40,7 @@ dependencies:
   firebase_auth: ^5.5.3
   firebase_database: ^11.3.5
   flutter_dotenv: ^5.1.0
+  gif: ^2.3.0
 
 
 
@@ -99,3 +100,4 @@ flutter:
   assets:
     - .env
     - .env.example
+    - assets/gifs/
