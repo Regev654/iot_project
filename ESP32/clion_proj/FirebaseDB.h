@@ -33,7 +33,6 @@ class FirebaseDB : public IFirebaseDB
 
     ActiveEvent activeEvent;
     AsyncResult activeEventResult;
-    AsyncResult keepAliveResult;
     bool isSetActiveEvent = false;
     bool hadSetup = false;
     unsigned long lastTimeTriggered = 0;
@@ -90,6 +89,7 @@ public:
 
         Serial.print("\nfirebase disconnected due to wifi disconnection. ");
         isLastReady = false;
+        isSetActiveEvent = false;
         activeEvent.reset();
 
     }
