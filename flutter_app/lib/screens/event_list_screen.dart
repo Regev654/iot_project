@@ -1,315 +1,437 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../models/event.dart';
-import '../models/participant.dart';
 import 'event_detail_screen.dart';
+import 'connected_devices_screen.dart';
+import 'settings_screen.dart';
+import 'login_screen.dart';
+import 'light_patterns_screen.dart';
 
 class EventListScreen extends StatefulWidget {
+  const EventListScreen({super.key});
+
   @override
-  _EventListScreenState createState() => _EventListScreenState();
+  State<EventListScreen> createState() => _EventListScreenState();
 }
 
 class _EventListScreenState extends State<EventListScreen> {
-  List<Event> events = [];
-  Event? liveEvent;
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
-  bool isLoading = true;
+  late DatabaseReference _eventsRef;
+  late StreamSubscription<DatabaseEvent> _eventsSubscription;
+  List<Event> _events = [];
+  bool _isLoading = true;
+  String _error = '';
+  String? _liveEventId;
 
   @override
   void initState() {
     super.initState();
-    _loadEvents();
-    // Listen for real-time updates
-    _dbRef.child('Events').onValue.listen((event) {
-      _loadEvents();
-    });
-    _dbRef.child('LiveEvent').onValue.listen((event) {
-      _loadEvents();
+    _eventsRef = FirebaseDatabase.instance.ref().child('EventsV3');
+    _setupEventsListener();
+    _setupLiveEventListener();
+  }
+
+  void _setupEventsListener() {
+    _eventsSubscription = _eventsRef.onValue.listen((event) {
+      if (!mounted) return;
+
+      if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>;
+        final events = <Event>[];
+        
+        data.forEach((key, value) {
+          if (value != null) {
+            events.add(Event.fromSnapshot(event.snapshot.child(key.toString())));
+          }
+        });
+
+        setState(() {
+          _events = events;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _events = [];
+          _isLoading = false;
+        });
+      }
+    }, onError: (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
     });
   }
 
-  Future<void> _loadEvents() async {
-    try {
-      print('Loading events from database...'); // Debug print
-      final eventsSnapshot = await _dbRef.child('Events').get();
-      final liveEventSnapshot = await _dbRef.child('LiveEvent').get();
-
-      if (mounted) {
+  void _setupLiveEventListener() {
+    FirebaseDatabase.instance.ref().child('LiveEventV3').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map<dynamic, dynamic>?;
         setState(() {
-          events = [];
-          if (eventsSnapshot.exists) {
-            print('Events snapshot exists, processing data...'); // Debug print
-            final data = eventsSnapshot.value as Map<dynamic, dynamic>;
-            print('Raw events data: $data'); // Debug print
-            
-            data.forEach((key, value) {
-              if (value != null) {
-                try {
-                  final Map<String, dynamic> eventData = Map<String, dynamic>.from(value as Map);
-                  eventData['ID'] = key.toString();
-                  print('Processing event with ID: $key'); // Debug print
-                  print('Event data: $eventData'); // Debug print
-                  
-                  if (eventData['Participants'] != null) {
-                    final participantsMap = eventData['Participants'] as Map<dynamic, dynamic>;
-                    eventData['Participants'] = Map<String, dynamic>.from(participantsMap);
-                  }
-                  
-                  events.add(Event.fromJson(eventData));
-                } catch (e) {
-                  print('Error parsing event $key: $e');
-                }
-              }
-            });
-          } else {
-            print('No events found in database'); // Debug print
-          }
-
-          if (liveEventSnapshot.exists && liveEventSnapshot.value != null) {
-            try {
-              final liveEventId = liveEventSnapshot.value as String;
-              
-              // Find the corresponding event from the events list
-              final event = events.firstWhere(
-                (e) => e.eventId == liveEventId,
-                orElse: () => Event(
-                  eventId: '',
-                  eventTitle: '',
-                ),
-              );
-              
-              if (event.eventId.isNotEmpty) {
-                liveEvent = event;
-              } else {
-                liveEvent = null;
-              }
-            } catch (e) {
-              print('Error parsing live event: $e');
-              liveEvent = null;
-            }
-          } else {
-            liveEvent = null;
-          }
-          isLoading = false;
+          _liveEventId = data != null && data['id'] != null ? data['id'].toString() : null;
+        });
+      } else {
+        setState(() {
+          _liveEventId = null;
         });
       }
+    });
+  }
+
+  @override
+  void dispose() {
+    _eventsSubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> _signOut() async {
+    try {
+      await FirebaseAuth.instance.signOut();
+      // No need to navigate manually - AuthWrapper will handle it
     } catch (e) {
-      print('Error loading events: $e');
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading events')),
+          SnackBar(content: Text('Error signing out: $e')),
         );
       }
     }
   }
 
-  void _createEvent() {
-    TextEditingController titleController = TextEditingController();
-    TextEditingController textToPrintController = TextEditingController();
-    TextEditingController amountController = TextEditingController();
+  Future<void> _addEvent() async {
+    final nameController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
 
-    showDialog(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Create Event'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleController,
-              decoration: InputDecoration(
-                labelText: 'Event Title',
-                border: OutlineInputBorder(),
+      builder: (context) => AlertDialog(
+        title: const Text('Add New Event'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Event Name',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter an event name';
+                  }
+                  return null;
+                },
               ),
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: amountController,
-              decoration: InputDecoration(
-                labelText: 'Amount',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            SizedBox(height: 16),
-            TextField(
-              controller: textToPrintController,
-              decoration: InputDecoration(
-                labelText: 'Text to Print',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
-            onPressed: () async {
-              if (titleController.text.trim().isNotEmpty) {
-                final newEvent = Event(
-                  eventId: DateTime.now().millisecondsSinceEpoch.toString(),
-                  eventTitle: titleController.text.trim(),
-                  textToPrint: textToPrintController.text.trim(),
-                  amount: int.tryParse(amountController.text) ?? 0,
-                );
-                try {
-                  final eventData = newEvent.toJson();
-                  print('Creating new event: $eventData'); // Debug print
-                  await _dbRef.child('Events').child(newEvent.eventId).set(eventData);
-                  Navigator.pop(context);
-                } catch (e) {
-                  print('Error creating event: $e');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error creating event')),
-                  );
-                }
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, true);
               }
             },
-            child: Text('Create'),
-          )
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
+
+    if (result == true) {
+      try {
+        final newEventRef = _eventsRef.push();
+        final newEvent = Event(
+          eventId: newEventRef.key!,
+          eventTitle: nameController.text,
+        );
+
+        await newEventRef.set(newEvent.toMap());
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error adding event: $e')),
+          );
+        }
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Event Manager'),
+        title: const Text('Events'),
+        centerTitle: true,
         elevation: 0,
-        backgroundColor: Theme.of(context).colorScheme.primary,
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.light_mode),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LightPatternsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Light Patterns',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.devices),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ConnectedDevicesScreen(),
+                ),
+              );
+            },
+            tooltip: 'Connected Devices',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingsScreen(),
+                ),
+              );
+            },
+            tooltip: 'Settings',
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _signOut,
+            tooltip: 'Sign Out',
+          ),
+        ],
       ),
-      body: isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text(
-                    'Loading events...',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
+      body: Column(
+        children: [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.1),
+                    theme.colorScheme.surface,
+                  ],
+                ),
               ),
-            )
-          : Column(
-              children: [
-                if (liveEvent != null)
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    color: Colors.green.withOpacity(0.1),
-                    child: Row(
-                      children: [
-                        Icon(Icons.live_tv, color: Colors.green),
-                        SizedBox(width: 8),
-                        Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error.isNotEmpty
+                      ? Center(
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 64,
+                                color: theme.colorScheme.error,
+                              ),
+                              const SizedBox(height: 16),
                               Text(
-                                'Live Event',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
+                                'Error',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: theme.colorScheme.error,
                                 ),
                               ),
+                              const SizedBox(height: 8),
                               Text(
-                                liveEvent!.eventTitle,
-                                style: TextStyle(fontSize: 16),
+                                _error,
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                ),
+                                textAlign: TextAlign.center,
                               ),
                             ],
                           ),
-                        ),
-                      ],
-                    ),
-                  ),
-                Expanded(
-                  child: events.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No events yet. Create one!',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.grey,
-                            ),
-                          ),
                         )
-                      : ListView.builder(
-                          padding: EdgeInsets.all(16),
-                          itemCount: events.length,
-                          itemBuilder: (_, index) {
-                            final event = events[index];
-                            return Card(
-                              elevation: 2,
-                              margin: EdgeInsets.only(bottom: 16),
-                              child: ListTile(
-                                contentPadding: EdgeInsets.all(16),
-                                title: Text(
-                                  event.eventTitle,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
+                      : _events.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: theme.colorScheme.primary.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      Icons.event_busy,
+                                      size: 64,
+                                      color: theme.colorScheme.primary,
+                                    ),
                                   ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (event.textToPrint.isNotEmpty)
-                                      Padding(
-                                        padding: EdgeInsets.only(top: 8),
-                                        child: Text(
-                                          event.textToPrint,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
+                                  const SizedBox(height: 24),
+                                  Text(
+                                    'No Events Yet',
+                                    style: theme.textTheme.headlineSmall?.copyWith(
+                                      color: theme.colorScheme.primary,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'Add your first event to get started',
+                                    style: theme.textTheme.bodyLarge?.copyWith(
+                                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _events.length,
+                              itemBuilder: (context, index) {
+                                final event = _events[index];
+                                return Center(
+                                  child: ConstrainedBox(
+                                    constraints: const BoxConstraints(maxWidth: 800),
+                                    child: Card(
+                                      elevation: 4,
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
-                                    if (event.amount > 0)
-                                      Padding(
-                                        padding: EdgeInsets.only(top: 4),
-                                        child: Text(
-                                          'Amount: ${event.amount}',
-                                          style: TextStyle(
-                                            color: Colors.green,
-                                            fontWeight: FontWeight.bold,
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(16),
+                                        onTap: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) => EventDetailScreen(event: event),
+                                            ),
+                                          );
+                                        },
+                                        child: Container(
+                                          padding: const EdgeInsets.all(20),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(16),
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: [
+                                                theme.colorScheme.primary.withOpacity(0.1),
+                                                theme.colorScheme.surface,
+                                              ],
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.all(12),
+                                                    decoration: BoxDecoration(
+                                                      color: theme.colorScheme.primary.withOpacity(0.1),
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    child: Icon(
+                                                      Icons.event,
+                                                      color: theme.colorScheme.primary,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 16),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          event.eventTitle,
+                                                          style: theme.textTheme.titleLarge?.copyWith(
+                                                            color: theme.colorScheme.primary,
+                                                            fontWeight: FontWeight.bold,
+                                                          ),
+                                                        ),
+                                                        if (event.eventId == _liveEventId)
+                                                          Container(
+                                                            margin: const EdgeInsets.only(top: 4),
+                                                            padding: const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                              vertical: 4,
+                                                            ),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.green.withOpacity(0.1),
+                                                              borderRadius: BorderRadius.circular(12),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(
+                                                                  Icons.live_tv,
+                                                                  size: 16,
+                                                                  color: Colors.green,
+                                                                ),
+                                                                const SizedBox(width: 4),
+                                                                Text(
+                                                                  'Live Event',
+                                                                  style: TextStyle(
+                                                                    color: Colors.green,
+                                                                    fontWeight: FontWeight.bold,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                                trailing: Icon(Icons.chevron_right),
-                                onTap: () async {
-                                  final updatedEvent = await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => EventDetailScreen(
-                                        event: event,
-                                        isLive: liveEvent?.eventId == event.eventId,
-                                      ),
                                     ),
-                                  );
-                                  if (updatedEvent != null) {
-                                    _loadEvents();
-                                  }
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                ),
-              ],
+                                  ),
+                                );
+                              },
+                            ),
             ),
+          ),
+          // Subtle build number at the bottom
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Build 3.1.5',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(0.4),
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _createEvent,
-        icon: Icon(Icons.add),
-        label: Text('New Event'),
+        onPressed: _addEvent,
+        icon: const Icon(Icons.add),
+        label: const Text('Add Event'),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
       ),
     );
   }

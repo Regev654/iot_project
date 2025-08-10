@@ -8,388 +8,369 @@ import '../models/event.dart';
 import '../models/participant.dart';
 import '../utils/csv_parser.dart';
 import 'event_stats_screen.dart';
+import 'groups_screen.dart';
+import 'item_edit_screen.dart';
 
 class EventDetailScreen extends StatefulWidget {
   final Event event;
-  final bool isLive;
 
-  EventDetailScreen({
-    required this.event,
-    this.isLive = false,
-  });
+  const EventDetailScreen({super.key, required this.event});
 
   @override
-  _EventDetailScreenState createState() => _EventDetailScreenState();
+  State<EventDetailScreen> createState() => _EventDetailScreenState();
 }
 
 class _EventDetailScreenState extends State<EventDetailScreen> {
-  late List<Participant> participants;
-  late TextEditingController textToPrintController;
-  late TextEditingController amountController;
-  late TextEditingController searchController;
-  String search = '';
-  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
-  StreamSubscription? _participantsSubscription;
+  late DatabaseReference _eventRef;
+  late StreamSubscription _participantsSubscription;
+  late StreamSubscription _defaultItemsSubscription;
+  late StreamSubscription _eventTitleSubscription;
+  Map<String, Participant> _participants = {};
+  bool _isLoading = true;
+  String _error = '';
+  late TextEditingController _searchController;
+  bool _isEditing = false;
+  bool _isLiveEvent = false;
+  // Remove textToPrint field and editing logic
+  // Add default items button and dialog
+  Map<String, int> _defaultItems = {};
+  bool _showDefaultItems = true;
+  String _currentEventTitle = '';
 
   @override
   void initState() {
     super.initState();
-    participants = [...widget.event.participants];
-    textToPrintController = TextEditingController(text: widget.event.textToPrint);
-    amountController = TextEditingController(text: widget.event.amount.toString());
-    searchController = TextEditingController();
+    _eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}');
+    _searchController = TextEditingController();
+    _currentEventTitle = widget.event.eventTitle;
     _setupParticipantsListener();
+    _setupDefaultItemsListener();
+    _setupEventTitleListener();
+    _checkLiveStatus();
   }
 
   void _setupParticipantsListener() {
-    final participantsRef = _dbRef
-        .child('Events')
-        .child(widget.event.eventId)
-        .child('Participants');
-
-    _participantsSubscription = participantsRef.onValue.listen((event) {
+    _participantsSubscription = _eventRef.child('Participants').onValue.listen((event) {
       if (event.snapshot.value != null) {
-        final Map<dynamic, dynamic> data = event.snapshot.value as Map<dynamic, dynamic>;
+        final data = event.snapshot.value as Map<dynamic, dynamic>;
+        final participants = <String, Participant>{};
+        data.forEach((key, value) {
+          final participantData = value as Map<dynamic, dynamic>;
+          participants[key.toString()] = Participant.fromJson({
+            'ID': key.toString(),
+            'items': participantData['items'] ?? {},
+          });
+        });
         setState(() {
-          participants = data.entries.map((entry) {
-            final participantData = entry.value as Map<dynamic, dynamic>;
-            return Participant(
-              id: entry.key.toString(),
-              maxTokens: participantData['maxTokens'] ?? 0,
-              usedTokens: participantData['usedTokens'] ?? 0,
-              textToPrint: participantData['textToPrint'] ?? '',
-            );
-          }).toList();
+          _participants = participants;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _participants = {};
+          _isLoading = false;
         });
       }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
     });
+  }
+
+  void _setupDefaultItemsListener() {
+    _defaultItemsSubscription = _eventRef.child('defaultItems').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final data = event.snapshot.value as Map?;
+        if (data != null) {
+          setState(() {
+            _defaultItems = data.map((k, v) => MapEntry(k.toString(), v as int));
+            _showDefaultItems = true; // Enable the toggle when default items exist
+          });
+        }
+      } else {
+        setState(() {
+          _defaultItems = {};
+          _showDefaultItems = false; // Disable the toggle when no default items exist
+        });
+      }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    });
+  }
+
+  void _setupEventTitleListener() {
+    _eventTitleSubscription = _eventRef.child('eventTitle').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final newTitle = event.snapshot.value as String;
+        if (newTitle != _currentEventTitle) {
+          setState(() {
+            _currentEventTitle = newTitle;
+          });
+        }
+      }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    });
+  }
+
+  Future<void> _editDefaultItemsScreen() async {
+    final result = await Navigator.push<Map<String, int>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ItemEditScreen(
+          initialItems: _defaultItems,
+          title: 'Edit Default Items',
+          eventId: widget.event.eventId,
+          isDefaultItems: true,
+        ),
+      ),
+    );
+    if (result != null) {
+      setState(() {
+        _defaultItems = result;
+      });
+      // Update LiveEventV3 if this event is currently live
+      await _updateLiveEventDefaultItems();
+    }
+  }
+
+  Future<void> _makeLiveEvent() async {
+    try {
+      // Update only the id field
+      await FirebaseDatabase.instance.ref().child('LiveEventV3/id').set(widget.event.eventId);
+      
+      // Update defaultItems only if they exist, otherwise remove the entry
+      if (_showDefaultItems && _defaultItems.isNotEmpty) {
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(_defaultItems);
+      } else {
+        // Remove defaultItems entry if it exists
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+      }
+      
+        setState(() => _isLiveEvent = true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Event is now live')),
+          );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error setting live event: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _checkLiveStatus() async {
+    try {
+      final liveEventSnapshot = await FirebaseDatabase.instance.ref().child('LiveEventV3').get();
+      if (liveEventSnapshot.exists) {
+        final data = liveEventSnapshot.value as Map<dynamic, dynamic>?;
+        final liveEventId = data != null && data['id'] != null ? data['id'].toString() : null;
+        setState(() => _isLiveEvent = liveEventId == widget.event.eventId);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error checking live status: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateLiveEventDefaultItems() async {
+    if (!_isLiveEvent) return;
+    
+    try {
+      if (_showDefaultItems && _defaultItems.isNotEmpty) {
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(_defaultItems);
+      } else {
+        // Remove defaultItems entry if disabled or empty
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error updating live event default items: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteEvent() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Event'),
+        content: Text(
+          'Are you sure you want to delete "${widget.event.eventTitle}"? This action cannot be undone and will remove all associated groups and participants.',
+          style: Theme.of(context).textTheme.bodyLarge,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _eventRef.remove();
+      if (mounted) {
+        Navigator.pop(context); // Return to event list
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Event deleted')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting event: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editEventName() async {
+    final nameController = TextEditingController(text: widget.event.eventTitle);
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Event Name'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Event Name',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter an event name';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, nameController.text.trim());
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result != widget.event.eventTitle) {
+      try {
+        await _eventRef.child('eventTitle').set(result);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Event name updated')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error updating event name: $e')),
+          );
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
-    _participantsSubscription?.cancel();
-    textToPrintController.dispose();
-    amountController.dispose();
-    searchController.dispose();
+    _participantsSubscription.cancel();
+    _defaultItemsSubscription.cancel();
+    _eventTitleSubscription.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _addParticipantManually() async {
-    TextEditingController controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Add Participant'),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            labelText: 'User ID (digits only)',
-            border: OutlineInputBorder(),
-          ),
-          keyboardType: TextInputType.number,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              final id = controller.text.trim();
-              if (RegExp(r'^\d+$').hasMatch(id)) {
-                // Check if participant already exists
-                final participantSnapshot = await _dbRef
-                    .child('Events')
-                    .child(widget.event.eventId)
-                    .child('Participants')
-                    .child(id)
-                    .get();
-
-                if (participantSnapshot.exists) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Participant ID already exists')),
-                  );
-                } else {
-                  final participant = Participant(
-                    id: id,
-                    maxTokens: widget.event.amount,
-                    textToPrint: widget.event.textToPrint,
-                  );
-                  setState(() {
-                    participants.add(participant);
-                  });
-                  // Save to Firebase
-                  await _dbRef
-                      .child('Events')
-                      .child(widget.event.eventId)
-                      .child('Participants')
-                      .child(id)
-                      .set(participant.toJson());
-                }
-              }
-              Navigator.pop(context);
-            },
-            child: Text('Add'),
-          )
-        ],
-      ),
-    );
-  }
-
-  Future<void> _uploadCSV() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['csv'],
-    );
-    if (result != null) {
-      try {
-        final csvContent = utf8.decode(result.files.first.bytes!);
-        final ids = parseUserIDsFromCSV(csvContent);
-        
-        // Check for existing participants
-        final existingParticipants = await _dbRef
-            .child('Events')
-            .child(widget.event.eventId)
-            .child('Participants')
-            .get();
-
-        final existingIds = existingParticipants.exists
-            ? (existingParticipants.value as Map<dynamic, dynamic>).keys.map((k) => k.toString()).toSet()
-            : <String>{};
-
-        final newParticipants = ids.where((id) => !existingIds.contains(id)).toList();
-        
-        if (newParticipants.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('No new participants to add')),
-          );
-          return;
-        }
-
-        // Add new participants
-        final batch = <String, Map<String, dynamic>>{};
-        for (final id in newParticipants) {
-          final participant = Participant(
-            id: id,
-            maxTokens: widget.event.amount,
-            textToPrint: widget.event.textToPrint,
-          );
-          batch[id] = participant.toJson();
-        }
-
-        // Update database in a single operation
-        await _dbRef
-            .child('Events')
-            .child(widget.event.eventId)
-            .child('Participants')
-            .update(batch);
-
-        // Update local state
-        setState(() {
-          participants.addAll(
-            newParticipants.map((id) => Participant(
-              id: id,
-              maxTokens: widget.event.amount,
-              textToPrint: widget.event.textToPrint,
-            )),
-          );
-        });
-
+  Future<void> _updateParticipantItemTokens(Participant participant, String itemName, int newUsedTokens) async {
+    final items = Map<String, Map<String, int>>.from(participant.items);
+    final maxTokens = items[itemName]?['maxTokens'] ?? 0;
+    if (newUsedTokens < 0 || newUsedTokens > maxTokens) return;
+    items[itemName] = {
+      'maxTokens': maxTokens,
+      'usedTokens': newUsedTokens,
+    };
+    try {
+      await _eventRef.child('Participants/${participant.id}').update({
+        'ID': participant.id,
+        'items': items,
+      });
+    } catch (e) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added ${newParticipants.length} new participants')),
-        );
-      } catch (e) {
-        print('Error uploading CSV: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error uploading CSV file')),
+          SnackBar(content: Text('Error updating tokens: $e')),
         );
       }
     }
   }
 
-  Future<void> _updateParticipantTokens(Participant participant, int newUsedTokens) async {
-    setState(() {
-      participant.usedTokens = newUsedTokens;
-    });
-
-    try {
-      await _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants')
-          .child(participant.id)
-          .update({'usedTokens': newUsedTokens});
-    } catch (e) {
-      print('Error updating tokens: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error updating tokens')),
-      );
-    }
-  }
-
-  Future<void> _removeParticipant(Participant participant) async {
-    try {
-      // Remove from database immediately
-      await _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants')
-          .child(participant.id)
-          .remove();
-      
-      // Update local state
-      setState(() {
-        participants.remove(participant);
-      });
-    } catch (e) {
-      print('Error removing participant: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error removing participant')),
-      );
-    }
-  }
-
-  Future<void> _startEvent() async {
-    try {
-      // Remove any existing live event
-      await _dbRef.child('LiveEvent').remove();
-      
-      // Create new live event with just the event ID as a string value
-      await _dbRef.child('LiveEvent').set(widget.event.eventId);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Event Started')),
-      );
-      
-      // Create the event object for navigation
-      final liveEvent = Event(
-        eventId: widget.event.eventId,
-        eventTitle: widget.event.eventTitle,
-        textToPrint: textToPrintController.text.trim(),
-        amount: int.tryParse(amountController.text) ?? 0,
-        participants: participants,
-      );
-      
-      Navigator.pop(context, liveEvent);
-    } catch (e) {
-      print('Error starting event: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error starting event')),
-      );
-    }
-  }
-
-  Future<void> _saveEvent() async {
-    try {
-      final newTextToPrint = textToPrintController.text.trim();
-      final newAmount = int.tryParse(amountController.text) ?? 0;
-
-      // Update participants with new textToPrint and maxTokens
-      final participantsRef = _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants');
-      
-      for (final participant in participants) {
-        participant.textToPrint = newTextToPrint;
-        participant.maxTokens = newAmount;
-        await participantsRef.child(participant.id).set(participant.toJson());
-      }
-
-      // Save other event data
-      await _dbRef.child('Events').child(widget.event.eventId).update({
-        'eventTitle': widget.event.eventTitle,
-        'textToPrint': newTextToPrint,
-        'amount': newAmount,
-      });
-
-      final updatedEvent = Event(
-        eventId: widget.event.eventId,
-        eventTitle: widget.event.eventTitle,
-        textToPrint: newTextToPrint,
-        amount: newAmount,
-        participants: participants,
-      );
-
-      Navigator.pop(context, updatedEvent);
-    } catch (e) {
-      print('Error saving event: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error saving event')),
-      );
-    }
-  }
-
-  Future<void> _resetTokens() async {
-    try {
-      // Show confirmation dialog
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text('Reset Tokens'),
-          content: Text('Are you sure you want to reset all used tokens to 0?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Reset'),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
-            ),
-          ],
-        ),
-      );
-
-      if (confirmed != true) return;
-
-      // Update all participants in the database
-      final participantsRef = _dbRef
-          .child('Events')
-          .child(widget.event.eventId)
-          .child('Participants');
-      
-      for (final participant in participants) {
-        participant.usedTokens = 0;
-        await participantsRef.child(participant.id).update({
-          'usedTokens': 0,
-        });
-      }
-
-      setState(() {}); // Refresh the UI
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('All tokens have been reset')),
-      );
-    } catch (e) {
-      print('Error resetting tokens: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error resetting tokens')),
-      );
-    }
+  int getActiveUsers() {
+    return _participants.values.where((p) => p.items.values.any((item) => (item['usedTokens'] ?? 0) > 0)).length;
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = participants.where((p) => p.id.contains(search)).toList();
     final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.event.eventTitle),
+        title: Text(_currentEventTitle),
+        centerTitle: true,
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
         actions: [
           IconButton(
-            icon: Icon(Icons.bar_chart),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EventStatsScreen(event: widget.event),
-                ),
-              );
-            },
+            icon: const Icon(Icons.edit),
+            color: Colors.white,
+            onPressed: _editEventName,
+            tooltip: 'Edit Event Name',
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            color: Colors.white,
+            onPressed: _deleteEvent,
+            tooltip: 'Delete Event',
           ),
         ],
       ),
@@ -400,269 +381,548 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
             end: Alignment.bottomCenter,
             colors: [
               theme.colorScheme.primary.withOpacity(0.1),
-              Colors.white,
+              theme.colorScheme.surface,
             ],
           ),
         ),
-        child: Padding(
-          padding: EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Card(
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      TextField(
-                        controller: textToPrintController,
-                        decoration: InputDecoration(
-                          labelText: 'Text to Print',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          alignLabelWithHint: true,
-                        ),
-                        maxLines: 1,
-                        style: TextStyle(fontSize: 14),
-                        textAlignVertical: TextAlignVertical.center,
-                      ),
-                      SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        decoration: InputDecoration(
-                          labelText: 'Amount',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        ),
-                        keyboardType: TextInputType.number,
-                        style: TextStyle(fontSize: 14),
-                        textAlignVertical: TextAlignVertical.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SizedBox(height: 16),
-              Row(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _uploadCSV,
-                      icon: Icon(Icons.upload_file),
-                      label: Text('Upload CSV'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _addParticipantManually,
-                      icon: Icon(Icons.person_add),
-                      label: Text('Add Participant'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: searchController,
-                      decoration: InputDecoration(
-                        labelText: 'Search by ID',
-                        prefixIcon: Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                      onChanged: (value) => setState(() => search = value),
-                    ),
-                  ),
-                  SizedBox(width: 10),
-                  ElevatedButton.icon(
-                    onPressed: _resetTokens,
-                    icon: Icon(Icons.refresh),
-                    label: Text('Reset'),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                      backgroundColor: Colors.orange,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: filtered.length,
-                  itemBuilder: (_, index) {
-                    final participant = filtered[index];
-                    return Card(
-                      elevation: 2,
-                      margin: EdgeInsets.only(bottom: 8),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            // ID and Text to Print
-                            Expanded(
-                              flex: 2,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: theme.colorScheme.primary.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      participant.id,
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: theme.colorScheme.primary,
-                                      ),
-                                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isWideScreen = constraints.maxWidth > 600;
+                              final buttonWidth = isWideScreen ? 250.0 : constraints.maxWidth * 0.85;
+                              final buttonHeight = isWideScreen ? 65.0 : 60.0;
+                              
+                              return Center(
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isWideScreen ? 900.0 : constraints.maxWidth,
                                   ),
-                                  if (participant.textToPrint.isNotEmpty)
-                                    Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        participant.textToPrint,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: TextStyle(
-                                          color: Colors.grey[700],
-                                          fontSize: 12,
+                                  child: Wrap(
+                                    spacing: 16,
+                                    runSpacing: 16,
+                                    alignment: WrapAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => GroupsScreen(event: widget.event),
+                                              ),
+                                            );
+                                          },
+                                          icon: Icon(
+                                            Icons.group,
+                                            size: isWideScreen ? 32 : 28,
+                                          ),
+                                          label: Text(
+                                            'Manage Groups',
+                                            style: TextStyle(
+                                              fontSize: isWideScreen ? 18 : 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.primary,
+                                            foregroundColor: theme.colorScheme.onPrimary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                            // Tokens and Controls
-                            Expanded(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 4),
-                                    child: Text(
-                                      '${participant.usedTokens}/${participant.maxTokens}',
-                                      style: TextStyle(
-                                        color: theme.colorScheme.primary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: FilledButton.icon(
+                                          onPressed: () {
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => EventStatsScreen(event: widget.event),
+                                              ),
+                                            );
+                                          },
+                                          icon: Icon(
+                                            Icons.analytics,
+                                            size: isWideScreen ? 32 : 28,
+                                          ),
+                                          label: Text(
+                                            'View Stats',
+                                            style: TextStyle(
+                                              fontSize: isWideScreen ? 18 : 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          style: FilledButton.styleFrom(
+                                            backgroundColor: theme.colorScheme.secondary,
+                                            foregroundColor: theme.colorScheme.onSecondary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(16),
+                                            ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
+                                      SizedBox(
+                                        width: buttonWidth,
+                                        height: buttonHeight,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                              colors: _isLiveEvent 
+                                                ? [Colors.green.shade600, Colors.green.shade800]
+                                                : [theme.colorScheme.primary, theme.colorScheme.primary.withOpacity(0.8)],
+                                            ),
+                                            borderRadius: BorderRadius.circular(16),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: (_isLiveEvent ? Colors.green : theme.colorScheme.primary).withOpacity(0.3),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 4),
+                                              ),
+                                            ],
+                                          ),
+                                          child: FilledButton.icon(
+                                            onPressed: _isLiveEvent ? null : _makeLiveEvent,
+                                            icon: Icon(
+                                              Icons.live_tv,
+                                              size: isWideScreen ? 32 : 28,
+                                            ),
+                                            label: Text(
+                                              _isLiveEvent ? 'Event is Live' : 'Make Live Event',
+                                              style: TextStyle(
+                                                fontSize: isWideScreen ? 18 : 16,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              foregroundColor: Colors.white,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(16),
+                                              ),
+                                              padding: EdgeInsets.zero,
+                                              disabledForegroundColor: Colors.white.withOpacity(0.7),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  IconButton(
-                                    icon: Icon(Icons.remove_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens > 0
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens - 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.add_circle_outline, size: 20),
-                                    color: theme.colorScheme.primary,
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: participant.usedTokens < participant.maxTokens
-                                        ? () => _updateParticipantTokens(
-                                            participant,
-                                            participant.usedTokens + 1)
-                                        : null,
-                                  ),
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline, size: 20),
-                                    color: Colors.red[400],
-                                    padding: EdgeInsets.all(4),
-                                    constraints: BoxConstraints(),
-                                    onPressed: () => _removeParticipant(participant),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _saveEvent,
-                      icon: Icon(Icons.save),
-                      label: Text('Save'),
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                                ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  SizedBox(width: 10),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: _startEvent,
-                      icon: Icon(Icons.play_arrow),
-                      label: Text('Start Event'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          Column(
+                            children: [
+                              Icon(Icons.people, color: theme.colorScheme.primary, size: 28),
+                              SizedBox(height: 4),
+                              Text('${_participants.length}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 2),
+                              Text('Total Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                            ],
+                          ),
+                          SizedBox(width: 16),
+                          Column(
+                            children: [
+                              Icon(Icons.person, color: theme.colorScheme.secondary, size: 28),
+                              SizedBox(height: 4),
+                              Text('${getActiveUsers()}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              SizedBox(height: 2),
+                              Text('Active Users', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                            ],
+                          ),
+                          if (_participants.isNotEmpty) ...[
+                            SizedBox(width: 16),
+                            Column(
+                              children: [
+                                Icon(Icons.percent, color: theme.colorScheme.tertiary, size: 28),
+                                SizedBox(height: 4),
+                                Text('(${(getActiveUsers() / _participants.length * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.secondary, fontWeight: FontWeight.bold)),
+                                SizedBox(height: 2),
+                                Text('Active %', style: theme.textTheme.bodySmall?.copyWith(color: Colors.grey[700])),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Card(
+                    color: Colors.white,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Switch(
+                                value: _showDefaultItems,
+                                                                onChanged: (val) async {
+                                  setState(() {
+                                    _showDefaultItems = val;
+                                    // Clear local default items when disabled
+                                    if (!val) {
+                                      _defaultItems = {};
+                                    }
+                                  });
+                                  
+                                  if (!val) {
+                                    // Delete defaultItems from event
+                                    try {
+                                      await _eventRef.child('defaultItems').remove();
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Default items disabled and removed')),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error removing default items from event: $e')),
+                                        );
+                                      }
+                                    }
+                                    
+                                    // Delete defaultItems from LiveEventV3 if this event is live
+                                    if (_isLiveEvent) {
+                                      try {
+                                        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Error removing default items from live event: $e')),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  } else {
+                                    // Re-enable: update LiveEventV3 if this event is live
+                                    _updateLiveEventDefaultItems();
+                                  }
+                                },
+                                activeColor: theme.colorScheme.primary,
+                              ),
+                              Text('Add default items', style: theme.textTheme.titleMedium),
+                            ],
+                          ),
+                          if (_showDefaultItems) ...[
+                            Row(
+                              children: [
+                                Text(
+                                  'Default Items',
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                ),
+                                const Spacer(),
+                                IconButton(
+                                  icon: Icon(Icons.edit),
+                                  color: theme.colorScheme.primary,
+                                  onPressed: _editDefaultItemsScreen,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            if (_defaultItems.isNotEmpty)
+                              Wrap(
+                                spacing: 8,
+                                children: _defaultItems.entries.map((e) => Chip(label: Text('${e.key}: ${e.value}'))).toList(),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Participants',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _searchController,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search participants...',
+                                    prefixIcon: const Icon(Icons.search),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onChanged: (value) {
+                                    setState(() {});
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          ..._participants.values
+                              .where((p) {
+                                final searchText = _searchController.text.toLowerCase();
+                                return searchText.isEmpty || p.id.toLowerCase().contains(searchText);
+                              })
+                              .take(10)
+                              .map((participant) {
+                                 return Container(
+                                   margin: const EdgeInsets.only(bottom: 16),
+                                   decoration: BoxDecoration(
+                                     color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                     border: Border.all(
+                                       color: Colors.grey[300]!,
+                                       width: 1,
+                                     ),
+                                     boxShadow: [
+                                       BoxShadow(
+                                         color: Colors.black.withOpacity(0.05),
+                                         blurRadius: 4,
+                                         offset: const Offset(0, 2),
+                                       ),
+                                     ],
+                                   ),
+                                   child: Column(
+                                     crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                       // Participant ID header
+                                       Padding(
+                                         padding: const EdgeInsets.all(12),
+                                         child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 12,
+                                            vertical: 6,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: theme.colorScheme.primary.withOpacity(0.1),
+                                             borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          child: Text(
+                                            participant.id,
+                                            style: TextStyle(
+                                              color: theme.colorScheme.primary,
+                                               fontWeight: FontWeight.w600,
+                                               fontSize: 14,
+                                            ),
+                                          ),
+                                        ),
+                                ),
+                                   // Participant items
+                                   ...participant.items.entries.map((entry) {
+                                  final itemName = entry.key;
+                                  final maxTokens = entry.value['maxTokens'] ?? 0;
+                                  final usedTokens = entry.value['usedTokens'] ?? 0;
+                                  final usagePercentage = maxTokens > 0 ? (usedTokens / maxTokens) * 100 : 0.0;
+                                     return Padding(
+                                       padding: const EdgeInsets.symmetric(vertical: 12),
+                                       child: Column(
+                                         children: [
+                                           Padding(
+                                             padding: const EdgeInsets.symmetric(horizontal: 12),
+                                             child: Column(
+                                               crossAxisAlignment: CrossAxisAlignment.start,
+                                               children: [
+                                                 Text(
+                                                   itemName,
+                                                   style: theme.textTheme.bodyMedium?.copyWith(
+                                                     fontWeight: FontWeight.w500,
+                                                     color: Colors.grey[800],
+                                                   ),
+                                                 ),
+                                                 const SizedBox(height: 8),
+                                                 Row(
+                                                   children: [
+                                                     Expanded(
+                                                       child: LinearProgressIndicator(
+                                                         value: usagePercentage / 100,
+                                                         backgroundColor: Colors.grey[200],
+                                                         valueColor: AlwaysStoppedAnimation<Color>(
+                                                           usagePercentage > 80
+                                                               ? Colors.red[400]!
+                                                               : usagePercentage > 50
+                                                                   ? Colors.orange[400]!
+                                                                   : Colors.green[400]!,
+                                                         ),
+                                                         minHeight: 6,
+                                                       ),
+                                                     ),
+                                                     const SizedBox(width: 12),
+                                                     Row(
+                                                       mainAxisSize: MainAxisSize.min,
+                                                       children: [
+                                                         Container(
+                                                           width: 40,
+                                                           height: 40,
+                                                           decoration: BoxDecoration(
+                                                             color: usedTokens > 0 ? Colors.red[50] : Colors.grey[100],
+                                                             borderRadius: BorderRadius.circular(8),
+                                                             border: Border.all(
+                                                               color: usedTokens > 0 ? Colors.red[200]! : Colors.grey[300]!,
+                                                               width: 1,
+                                                             ),
+                                                           ),
+                                                           child: Material(
+                                                             color: Colors.transparent,
+                                                             child: InkWell(
+                                                               borderRadius: BorderRadius.circular(8),
+                                                               onTap: usedTokens > 0
+                                                                   ? () => _updateParticipantItemTokens(participant, itemName, usedTokens - 1)
+                                                                   : null,
+                                                               child: Center(
+                                                                 child: Text(
+                                                                   '-',
+                                                                   style: TextStyle(
+                                                                     fontSize: 20,
+                                                                     fontWeight: FontWeight.bold,
+                                                                     color: usedTokens > 0 ? Colors.red[600] : Colors.grey[400],
+                                                                   ),
+                                                                 ),
+                                                               ),
+                                                             ),
+                                                           ),
+                                                         ),
+                                                         const SizedBox(width: 8),
+                                                         Container(
+                                                           width: 40,
+                                                           height: 40,
+                                                           decoration: BoxDecoration(
+                                                             color: usedTokens < maxTokens ? Colors.green[50] : Colors.grey[100],
+                                                             borderRadius: BorderRadius.circular(8),
+                                                             border: Border.all(
+                                                               color: usedTokens < maxTokens ? Colors.green[200]! : Colors.grey[300]!,
+                                                               width: 1,
+                                                             ),
+                                                           ),
+                                                           child: Material(
+                                                             color: Colors.transparent,
+                                                             child: InkWell(
+                                                               borderRadius: BorderRadius.circular(8),
+                                                               onTap: usedTokens < maxTokens
+                                                                   ? () => _updateParticipantItemTokens(participant, itemName, usedTokens + 1)
+                                                                   : null,
+                                                               child: Center(
+                                                                 child: Text(
+                                                                   '+',
+                                                                   style: TextStyle(
+                                                                     fontSize: 20,
+                                                                     fontWeight: FontWeight.bold,
+                                                                     color: usedTokens < maxTokens ? Colors.green[600] : Colors.grey[400],
+                                                                   ),
+                                                                 ),
+                                                               ),
+                                                             ),
+                                                           ),
+                                                         ),
+                                                       ],
+                                                     ),
+                                                   ],
+                                                 ),
+                                                 const SizedBox(height: 4),
+                                                 Text(
+                                                   '$usedTokens/$maxTokens',
+                                                   style: theme.textTheme.bodySmall?.copyWith(
+                                                     color: Colors.grey[600],
+                                                     fontSize: 12,
+                                                   ),
+                                                 ),
+                                               ],
+                                             ),
+                                           ),
+                                           const SizedBox(height: 8),
+                                           Container(
+                                             margin: const EdgeInsets.symmetric(horizontal: 10),
+                                             height: 1,
+                                             color: Colors.grey[300],
+                                           ),
+                                         ],
+                                       ),
+                                     );
+                                }).toList(),
+                                 ],
+                              ),
+                            );
+                          }).toList(),
+                          if (_participants.length > 10)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Text(
+                                'There are more than 10 participants. Use search to find more participants',
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),
