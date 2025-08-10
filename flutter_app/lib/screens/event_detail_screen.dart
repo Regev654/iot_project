@@ -503,11 +503,39 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             children: [
                               Switch(
                                 value: _showDefaultItems,
-                                onChanged: (val) {
+                                onChanged: (val) async {
                                   setState(() {
                                     _showDefaultItems = val;
                                   });
-                                  _updateLiveEventDefaultItems();
+                                  
+                                  if (!val) {
+                                    // Delete defaultItems from event
+                                    try {
+                                      await _eventRef.child('defaultItems').remove();
+                                    } catch (e) {
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error removing default items from event: $e')),
+                                        );
+                                      }
+                                    }
+                                    
+                                    // Delete defaultItems from LiveEventV3 if this event is live
+                                    if (_isLiveEvent) {
+                                      try {
+                                        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            SnackBar(content: Text('Error removing default items from live event: $e')),
+                                          );
+                                        }
+                                      }
+                                    }
+                                  } else {
+                                    // Re-enable: update LiveEventV3 if this event is live
+                                    _updateLiveEventDefaultItems();
+                                  }
                                 },
                                 activeColor: theme.colorScheme.primary,
                               ),
