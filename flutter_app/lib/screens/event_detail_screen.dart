@@ -86,11 +86,13 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         if (data != null) {
           setState(() {
             _defaultItems = data.map((k, v) => MapEntry(k.toString(), v as int));
+            _showDefaultItems = true; // Enable the toggle when default items exist
           });
         }
       } else {
         setState(() {
           _defaultItems = {};
+          _showDefaultItems = false; // Disable the toggle when no default items exist
         });
       }
     }, onError: (error) {
@@ -189,9 +191,12 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     if (!_isLiveEvent) return;
     
     try {
-      await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(
-        _showDefaultItems ? _defaultItems : {},
-      );
+      if (_showDefaultItems && _defaultItems.isNotEmpty) {
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').set(_defaultItems);
+      } else {
+        // Remove defaultItems entry if disabled or empty
+        await FirebaseDatabase.instance.ref().child('LiveEventV3/defaultItems').remove();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -597,15 +602,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
                             children: [
                               Switch(
                                 value: _showDefaultItems,
-                                onChanged: (val) async {
+                                                                onChanged: (val) async {
                                   setState(() {
                                     _showDefaultItems = val;
+                                    // Clear local default items when disabled
+                                    if (!val) {
+                                      _defaultItems = {};
+                                    }
                                   });
                                   
                                   if (!val) {
                                     // Delete defaultItems from event
                                     try {
                                       await _eventRef.child('defaultItems').remove();
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(content: Text('Default items disabled and removed')),
+                                        );
+                                      }
                                     } catch (e) {
                                       if (mounted) {
                                         ScaffoldMessenger.of(context).showSnackBar(
