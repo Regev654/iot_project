@@ -24,6 +24,7 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   late DatabaseReference _eventRef;
   late StreamSubscription _participantsSubscription;
   late StreamSubscription _defaultItemsSubscription;
+  late StreamSubscription _eventTitleSubscription;
   Map<String, Participant> _participants = {};
   bool _isLoading = true;
   String _error = '';
@@ -34,14 +35,17 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
   // Add default items button and dialog
   Map<String, int> _defaultItems = {};
   bool _showDefaultItems = true;
+  String _currentEventTitle = '';
 
   @override
   void initState() {
     super.initState();
     _eventRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.event.eventId}');
     _searchController = TextEditingController();
+    _currentEventTitle = widget.event.eventTitle;
     _setupParticipantsListener();
     _setupDefaultItemsListener();
+    _setupEventTitleListener();
     _checkLiveStatus();
   }
 
@@ -88,6 +92,24 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
         setState(() {
           _defaultItems = {};
         });
+      }
+    }, onError: (error) {
+      setState(() {
+        _error = error.toString();
+        _isLoading = false;
+      });
+    });
+  }
+
+  void _setupEventTitleListener() {
+    _eventTitleSubscription = _eventRef.child('eventTitle').onValue.listen((event) {
+      if (event.snapshot.value != null) {
+        final newTitle = event.snapshot.value as String;
+        if (newTitle != _currentEventTitle) {
+          setState(() {
+            _currentEventTitle = newTitle;
+          });
+        }
       }
     }, onError: (error) {
       setState(() {
@@ -223,10 +245,75 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     }
   }
 
+  Future<void> _editEventName() async {
+    final nameController = TextEditingController(text: widget.event.eventTitle);
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Event Name'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Event Name',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter an event name';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                Navigator.pop(context, nameController.text.trim());
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result != widget.event.eventTitle) {
+      try {
+        await _eventRef.child('eventTitle').set(result);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Event name updated')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error updating event name: $e')),
+          );
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _participantsSubscription.cancel();
     _defaultItemsSubscription.cancel();
+    _eventTitleSubscription.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -262,16 +349,23 @@ class _EventDetailScreenState extends State<EventDetailScreen> {
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.event.eventTitle),
+        title: Text(_currentEventTitle),
         centerTitle: true,
         elevation: 0,
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
         actions: [
           IconButton(
+            icon: const Icon(Icons.edit),
+            color: Colors.white,
+            onPressed: _editEventName,
+            tooltip: 'Edit Event Name',
+          ),
+          IconButton(
             icon: const Icon(Icons.delete),
             color: Colors.white,
             onPressed: _deleteEvent,
+            tooltip: 'Delete Event',
           ),
         ],
       ),
