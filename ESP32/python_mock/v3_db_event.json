@@ -1,0 +1,40 @@
+{
+  "Participants": {
+    "123456789": {
+      "ID": "123456789",
+      "items": {
+        "Pizza/beer": {
+          "maxTokens": 3,
+          "usedTokens": 0
+        }
+      }
+    },
+    "123456780": {
+      "ID": "123456780",
+      "items": {
+        "Pizza/beer": {
+          "maxTokens": 3,
+          "usedTokens": 3
+        }
+      }
+    }
+  },
+  "defaultItems": {},
+  "eventTitle": "Erev Lehakot",
+  "groups": {
+    "-OWz1Rxhd6igkMFj7Rsr": {
+      "groupId": "-OWz1Rxhd6igkMFj7Rsr",
+      "groupName": "Students",
+      "items": {
+        "Pizza/beer": {
+          "maxTokens": 3,
+          "usedTokens": 0
+        }
+      },
+      "participantIds": [
+        "123456789",
+        "123456780"
+      ]
+    }
+  }
+}
