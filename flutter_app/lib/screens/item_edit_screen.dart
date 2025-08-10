@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
+import '../utils/firebase_utils.dart';
 
 class ItemEditScreen extends StatefulWidget {
   final Map<String, int> initialItems;
@@ -26,6 +27,26 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
   final nameController = TextEditingController();
   final tokensController = TextEditingController();
   bool _isSaving = false;
+  final _formKey = GlobalKey<FormState>();
+
+  // Helper to filter out invalid item names when loading from Firebase
+  Map<String, int> _filterValidItems(Map<String, int> items) {
+    final validItems = FirebaseUtils.filterValidKeys(items, 'item names');
+    
+    if (validItems.length != items.length) {
+      final invalidItems = items.keys.where((key) => !FirebaseUtils.isValidFirebaseKey(key)).toList();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Warning: Some items have invalid names and were skipped: ${invalidItems.join(", ")}'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+    
+    return validItems;
+  }
 
   @override
   void initState() {
@@ -45,8 +66,9 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         if (snapshot.exists) {
           final data = snapshot.value as Map<dynamic, dynamic>?;
           if (data != null) {
+            final loadedItems = data.map((k, v) => MapEntry(k.toString(), v as int));
             setState(() {
-              items = data.map((k, v) => MapEntry(k.toString(), v as int));
+              items = _filterValidItems(loadedItems);
             });
           }
         }
@@ -63,7 +85,7 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
               loadedItems[key.toString()] = itemData['maxTokens'] ?? 0;
             });
             setState(() {
-              items = loadedItems;
+              items = _filterValidItems(loadedItems);
             });
           }
         }
@@ -81,6 +103,20 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
   }
 
   Future<void> _saveItems() async {
+    // Validate all item names before saving
+    final invalidItems = items.keys.where((name) => !FirebaseUtils.isValidFirebaseKey(name)).toList();
+    if (invalidItems.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid item names found: ${invalidItems.join(", ")}\nItem names cannot contain . # \$ [ ] / or be empty.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -107,9 +143,9 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
           final groupRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/groups/${widget.groupId}/items');
           
           // Convert items to the format expected by Firebase (Map<String, Map<String, int>>)
+          // Group items only store maxTokens, usedTokens are tracked at participant level
           final itemsForFirebase = items.map((key, value) => MapEntry(key, {
             'maxTokens': value,
-            'usedTokens': 0,
           }));
           
           await groupRef.set(itemsForFirebase);
@@ -164,6 +200,19 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
   Future<void> _saveItemToFirebase(String itemName, int maxTokens) async {
     if (widget.eventId == null) return;
 
+    // Validate item name
+    if (!FirebaseUtils.isValidFirebaseKey(itemName)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Invalid item name: "$itemName"\nItem names cannot contain . # \$ [ ] / or be empty.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       if (widget.isDefaultItems) {
         // Save to default items in the event
@@ -179,7 +228,6 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
         final groupRef = FirebaseDatabase.instance.ref().child('EventsV3/${widget.eventId}/groups/${widget.groupId}/items');
         await groupRef.child(itemName).set({
           'maxTokens': maxTokens,
-          'usedTokens': 0,
         });
         
         // Update all participants in this group with the new item
@@ -439,36 +487,58 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
                   SingleChildScrollView(
                     child: Column(
                       children: [
-                        Card(
-                          color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
-                          elevation: 1,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: TextField(
-                                    controller: nameController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Item Name',
-                                      prefixIcon: Icon(Icons.label_outline),
-                                      hintText: 'e.g. Free Pizza',
+                        Form(
+                          key: _formKey,
+                          child: Card(
+                            color: theme.colorScheme.surfaceVariant ?? Colors.grey[100],
+                            elevation: 1,
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: nameController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Item Name',
+                                        prefixIcon: Icon(Icons.label_outline),
+                                        hintText: 'e.g. Free Pizza',
+                                      ),
+                                                                             validator: (value) {
+                                         if (value == null || value.trim().isEmpty) {
+                                           return 'Please enter an item name';
+                                         }
+                                         if (!FirebaseUtils.isValidFirebaseKey(value.trim())) {
+                                           return 'Invalid name: cannot contain . # \$ [ ] / or be empty';
+                                         }
+                                         return null;
+                                       },
                                     ),
                                   ),
-                                ),
-                                SizedBox(width: 12),
-                                Expanded(
-                                  child: TextField(
-                                    controller: tokensController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Max Tokens',
-                                      prefixIcon: Icon(Icons.confirmation_num_outlined),
-                                      hintText: 'e.g. 2',
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: tokensController,
+                                      decoration: InputDecoration(
+                                        labelText: 'Max Tokens',
+                                        prefixIcon: Icon(Icons.confirmation_num_outlined),
+                                        hintText: 'e.g. 2',
+                                      ),
+                                      keyboardType: TextInputType.number,
+                                      validator: (value) {
+                                        if (value == null || value.trim().isEmpty) {
+                                          return 'Please enter max tokens';
+                                        }
+                                        final tokens = int.tryParse(value.trim());
+                                        if (tokens == null || tokens <= 0) {
+                                          return 'Please enter a valid positive number';
+                                        }
+                                        return null;
+                                      },
                                     ),
-                                    keyboardType: TextInputType.number,
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -477,15 +547,17 @@ class _ItemEditScreenState extends State<ItemEditScreen> {
                           width: double.infinity,
                           child: ElevatedButton.icon(
                             onPressed: () async {
-                              final name = nameController.text.trim();
-                              final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
-                              if (name.isNotEmpty && tokens > 0) {
-                                setState(() {
-                                  items[name] = tokens;
-                                  nameController.clear();
-                                  tokensController.clear();
-                                });
-                                await _saveItemToFirebase(name, tokens);
+                              if (_formKey.currentState!.validate()) {
+                                final name = nameController.text.trim();
+                                final tokens = int.tryParse(tokensController.text.trim()) ?? 0;
+                                if (name.isNotEmpty && tokens > 0 && FirebaseUtils.isValidFirebaseKey(name)) {
+                                  setState(() {
+                                    items[name] = tokens;
+                                    nameController.clear();
+                                    tokensController.clear();
+                                  });
+                                  await _saveItemToFirebase(name, tokens);
+                                }
                               }
                             },
                             icon: Icon(Icons.add),

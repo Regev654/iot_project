@@ -416,7 +416,7 @@ class _EventListScreenState extends State<EventListScreen> {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
-              'Build 3.1.3',
+              'Build 3.1.4',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withOpacity(0.4),

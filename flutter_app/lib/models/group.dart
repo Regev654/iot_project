@@ -20,7 +20,13 @@ class Group {
       groupName: data['groupName'] ?? '',
       participantIds: List<String>.from(data['participantIds'] ?? []),
       items: data['items'] != null
-        ? (data['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+        ? (data['items'] as Map).map((k, v) {
+            final itemData = v as Map<dynamic, dynamic>;
+            // Group items only store maxTokens, usedTokens are tracked at participant level
+            return MapEntry(k.toString(), {
+              'maxTokens': itemData['maxTokens'] ?? 0,
+            });
+          })
         : {},
     );
   }
@@ -33,7 +39,13 @@ class Group {
           ? List<String>.from(json['participantIds'])
           : [],
       items: json['items'] != null
-        ? (json['items'] as Map).map((k, v) => MapEntry(k.toString(), Map<String, int>.from(v as Map)))
+        ? (json['items'] as Map).map((k, v) {
+            final itemData = v as Map<dynamic, dynamic>;
+            // Group items only store maxTokens, usedTokens are tracked at participant level
+            return MapEntry(k.toString(), {
+              'maxTokens': itemData['maxTokens'] ?? 0,
+            });
+          })
         : {},
     );
   }

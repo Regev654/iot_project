@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
 import '../models/event.dart';
 import '../models/group.dart';
+import '../utils/firebase_utils.dart';
 import 'item_edit_screen.dart';
 
 class GroupsScreen extends StatefulWidget {
@@ -48,7 +49,11 @@ class _GroupsScreenState extends State<GroupsScreen> {
             final items = <String, Map<String, int>>{};
             if (rawItems != null) {
               rawItems.forEach((k, v) {
-                items[k.toString()] = Map<String, int>.from(v as Map);
+                final itemData = v as Map<dynamic, dynamic>;
+                // Group items only store maxTokens, usedTokens are tracked at participant level
+                items[k.toString()] = {
+                  'maxTokens': itemData['maxTokens'] ?? 0,
+                };
               });
             }
             groups[key.toString()] = Group(
@@ -155,11 +160,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
     }
   }
 
-  // Add a helper to validate Firebase keys
-  bool isValidFirebaseKey(String key) {
-    if (key.isEmpty) return false;
-    return !key.contains(RegExp(r'[.#$\[\]/]'));
-  }
+
 
   // Fix participant creation logic to only set items with valid keys
   Future<void> _addParticipant(String groupId) async {
@@ -191,7 +192,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               if (value == null || value.isEmpty) {
                 return 'Please enter participant ID';
               }
-              if (!isValidFirebaseKey(value)) {
+              if (!FirebaseUtils.isValidFirebaseKey(value)) {
                 return 'Invalid ID: cannot contain . # \$ [ ] / or be empty';
               }
               return null;
@@ -217,7 +218,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
     if (result != null) {
       try {
-        if (result.isEmpty || !isValidFirebaseKey(result)) {
+        if (result.isEmpty || !FirebaseUtils.isValidFirebaseKey(result)) {
           print('Manual add: empty or invalid participant ID, skipping.');
           return;
         }
@@ -614,7 +615,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
       for (final group in _groups.values) {
         if (group.participantIds.contains(participantId)) {
           group.items.forEach((itemName, itemData) {
-            if (isValidFirebaseKey(itemName)) {
+            if (FirebaseUtils.isValidFirebaseKey(itemName)) {
               items[itemName] = {
                 'maxTokens': (items[itemName]?['maxTokens'] ?? 0) + (itemData['maxTokens'] ?? 0),
                 'usedTokens': items[itemName]?['usedTokens'] ?? 0,
