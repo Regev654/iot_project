@@ -44,8 +44,6 @@ A Flutter application for managing beer tokens and event participation tracking.
 3. **Configure Firebase**
    - Copy `.env.example` to `.env` and fill in your Firebase configuration values
    - Copy `firebase.json.example` to `firebase.json` and update with your Firebase project details
-   - Place your `google-services.json` in `android/app/`
-   - Place your `GoogleService-Info.plist` in `ios/Runner/`
 
 4. **Run the app**
    ```bash
