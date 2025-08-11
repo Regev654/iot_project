@@ -5,7 +5,7 @@ A smart system that identifies users and prints drink vouchers using student IDs
 
 ### Main features:
 - Scans student ID (magnetic/barcode) for quick user verification
-- Checks voucher eligibility in real-time via a Firestore database
+- Checks voucher eligibility in real-time via a Firebase database
 - Instantly prints a custom voucher with event-specific details
 
  
