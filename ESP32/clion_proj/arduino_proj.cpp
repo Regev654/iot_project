@@ -11,7 +11,7 @@
 using std::unique_ptr;
 using std::make_unique;
 
-
+//use unique ptr to allocate memory on the heap and save stack space
 auto ledIndicator = make_unique<LedIndicator>();
 
 void onApStart(WiFiManager* notUsed)
@@ -19,6 +19,7 @@ void onApStart(WiFiManager* notUsed)
     ledIndicator->displaySearchingWifi();
 }
 
+//use unique ptr to allocate memory on the heap and save stack space
 auto settings = make_unique<Settings>();
 auto wifiConnection = make_unique<WifiConnection>(ledIndicator.get(),onApStart, settings.get());
 auto firebaseDB = make_unique<FirebaseDB>(ledIndicator.get(), settings.get());

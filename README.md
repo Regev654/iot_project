@@ -11,11 +11,17 @@ A smart system that identifies users and prints drink vouchers using student IDs
  
 ## Folder description :
 * ESP32: source code for the esp side (firmware).
-* Documentation: wiring diagram + basic operating instructions
-* Unit Tests: tests for individual hardware components (input / output devices)
+  * clion_proj - all the source code of the esp side, having stub methods to allow programing in CLion IDE, without the esp32 SDK and long compile times. using a python script, the code can be converted to a format that can be uploaded to the esp32, and moved to the arduino_proj folder.
+    * Parameters: contains description of parameters and settings that can be modified in the code
+  * arduino_proj - the source code to be loaded to the esp32
+  * python_mock - a python script that simulates an esp32 device to allow testing the app with multiple esp devices.
+* Documentation: 
+  * wiring diagram
+  * esp control flow diagram
+  * app control flow 
+  * physical setup
+  * led state explanation
 * flutter_app : dart code for our Flutter app.
-* Parameters: contains description of parameters and settings that can be modified IN YOUR CODE
-* Assets: link to 3D printed parts, Audio files used in this project, Fritzing file for connection diagram (FZZ format) etc
 
 ## ESP32 SDK version used in this project: 
 esp32 - version 3.2.1
@@ -37,10 +43,10 @@ Arduino AVR Boards 1.8.6
 * 1 - 470 microfarad capacitor 50v
 
 ## Connection diagram:
-<img width="4128" height="2028" alt="connection_diagram" src="https://github.com/user-attachments/assets/27762a61-a028-4956-975d-f24a7d5bd025" />
+![Connection diagram](https://github.com/user-attachments/assets/27762a61-a028-4956-975d-f24a7d5bd025)
 
 ## Project Poster: 
-![Beer Tokens IOT Poster_page-0001](https://github.com/user-attachments/assets/186464a5-9e7b-4e56-9771-a6f8021c276a)
+![Beer Tokens IOT Poster_page](https://github.com/user-attachments/assets/186464a5-9e7b-4e56-9771-a6f8021c276a)
 
 This project is part of ICST - The Interdisciplinary Center for Smart Technologies, Taub Faculty of Computer Science, Technion
 https://icst.cs.technion.ac.il/

@@ -1,8 +1,12 @@
+
+// all these parameters can be configured by the user in the app
 #define USE_PRINTER_PARAM               1
 #define REQUEST_TIMEOUT_PARAM           (30*1000)
 #define WIFI_RECONNECT_TIMEOUT_PARAM    (30*1000)
 #define MAX_TOKENS_AT_ONCE_PARAM        (10)
 #define KEEP_ALIVE_TIMEOUT_PARAM        (10*1000)
+
+// all these parameters are hardware related
 #define LED_PIN		                    11
 #define PIXELS_COUNT                    3
 #define PRINTER_UART                    1
